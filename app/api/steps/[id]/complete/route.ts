@@ -181,7 +181,24 @@ export async function POST(
     );
   }
 
-  // --- 8. Return updated order with items + steps ----------------------
+  // --- 8. Close order if every step is done ---------------------------
+  // allSteps reflects the just-written completion; nextStep.status was mutated
+  // to 'fired' in memory above, so this is only true on the very last step.
+  const allDone = allSteps.every(s => s.status === 'completed');
+
+  if (allDone) {
+    const { error: closeErr } = await adminClient
+      .from('orders').update({ status: 'completed' }).eq('id', order.id);
+
+    if (closeErr) {
+      return NextResponse.json(
+        { error: 'Failed to close order', detail: closeErr.message },
+        { status: 500 },
+      );
+    }
+  }
+
+  // --- 9. Return updated order with items + steps ----------------------
   const responseItems = allOrderItems.map(oi => ({
     ...oi,
     steps: allSteps
@@ -195,7 +212,10 @@ export async function POST(
   }));
 
   return NextResponse.json(
-    { order: { ...order, delay_status: delayStatus }, items: responseItems },
+    {
+      order: { ...order, delay_status: delayStatus, ...(allDone && { status: 'completed' }) },
+      items: responseItems,
+    },
     { status: 200 },
   );
 }
