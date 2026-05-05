@@ -9,7 +9,7 @@ function formatCountdown(ms: number): string {
   const abs = Math.abs(Math.round(ms / 1000));
   const m   = Math.floor(abs / 60);
   const s   = abs % 60;
-  return `${ms < 0 ? '-' : ''}${m}:${s.toString().padStart(2, '0')}`;
+  return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
 export default function OrderCard({ order }: { order: ActiveOrder }) {
@@ -34,7 +34,7 @@ export default function OrderCard({ order }: { order: ActiveOrder }) {
         </div>
         <div className="flex flex-col items-end gap-1">
           <p className={`font-mono text-lg font-bold tabular-nums ${isLate ? 'text-red-400' : 'text-gray-200'}`}>
-            {formatCountdown(remainingMs)}
+            {isLate ? `+${formatCountdown(remainingMs)} overdue` : formatCountdown(remainingMs)}
           </p>
           <DelayBadge status={order.delay_status} />
         </div>
