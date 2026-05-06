@@ -68,7 +68,10 @@ export default function SimulationBar() {
       const startRes = await fetch(`/api/steps/${id}/start`, { method: 'POST' });
       console.log(`[sim] start  step ${id} → ${startRes.status}`);
       // 409 means the step was already started by someone else — that's fine.
-      if (!startRes.ok && startRes.status !== 409) return;
+      if (!startRes.ok && startRes.status !== 409) {
+        scheduledRef.current.delete(id); // release so the next poll can retry
+        return;
+      }
 
       const extraMs  = Math.random() < delayChance ? (30 + Math.random() * 60) * 1000 : 0;
       const cookMs   = estimatedDuration * 1000 + extraMs;
