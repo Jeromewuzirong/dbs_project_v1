@@ -13,15 +13,16 @@ function formatCountdown(ms: number): string {
 }
 
 export default function OrderCard({ order, completing = false }: { order: ActiveOrder; completing?: boolean }) {
-  const [now, setNow] = useState(() => Date.now());
+  const [now, setNow] = useState<number | null>(null);
 
   useEffect(() => {
+    setNow(Date.now());
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
 
-  const remainingMs = new Date(order.target_serve_time).getTime() - now;
-  const isLate      = remainingMs < 0;
+  const remainingMs = now !== null ? new Date(order.target_serve_time).getTime() - now : null;
+  const isLate      = remainingMs !== null && remainingMs < 0;
 
   return (
     <div
@@ -38,7 +39,11 @@ export default function OrderCard({ order, completing = false }: { order: Active
         </div>
         <div className="flex flex-col items-end gap-1">
           <p className={`font-mono text-lg font-bold tabular-nums ${isLate ? 'text-red-400' : 'text-gray-200'}`}>
-            {isLate ? `+${formatCountdown(remainingMs)} overdue` : formatCountdown(remainingMs)}
+            {remainingMs === null
+              ? '—'
+              : isLate
+              ? `+${formatCountdown(remainingMs)} overdue`
+              : formatCountdown(remainingMs)}
           </p>
           <DelayBadge status={order.delay_status} />
         </div>

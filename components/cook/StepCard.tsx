@@ -21,18 +21,19 @@ async function apiPost(url: string): Promise<boolean> {
 }
 
 export default function StepCard({ step, onUpdate }: Props) {
-  const [now,  setNow]  = useState(() => Date.now());
+  const [now,  setNow]  = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    setNow(Date.now());
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
 
   const fireAtMs         = step.fire_at    ? new Date(step.fire_at).getTime()    : null;
   const startedAtMs      = step.started_at ? new Date(step.started_at).getTime() : null;
-  const secondsUntilFire = fireAtMs    !== null ? (fireAtMs - now) / 1000          : null;
-  const elapsedSeconds   = startedAtMs !== null ? (now - startedAtMs) / 1000       : null;
+  const secondsUntilFire = (fireAtMs    !== null && now !== null) ? (fireAtMs - now) / 1000    : null;
+  const elapsedSeconds   = (startedAtMs !== null && now !== null) ? (now - startedAtMs) / 1000 : null;
 
   const isPending    = step.status === 'pending';
   const isFired      = step.status === 'fired';
