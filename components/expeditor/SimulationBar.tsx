@@ -89,41 +89,62 @@ export default function SimulationBar() {
     }, Math.random() * 3000);
   }, []);
 
-  // Greedy cook poll: pick up any pending or fired step whose station is free
-  // (no in_progress step at the same station for the same order).
+  // Greedy cook poll: pick up any pending or fired step, subject to two constraints:
+  // 1. Station-level: no other in_progress step at the same station for the same order.
+  // 2. Dish-level sequential: no step N+1 while step N is still in_progress or scheduled.
+  //    Steps are sorted by step_number asc, so the first actionable step per dish is always
+  //    the earliest one. If it's already in scheduledRef, the dish is considered handled.
   const pollFiredSteps = useCallback(async () => {
     if (!runningRef.current) return;
 
     const [{ data: actionableData }, { data: inProgressData }] = await Promise.all([
       supabase
         .from('order_steps')
-        .select('id, step_number, estimated_duration, station_id, order_items!inner(order_id)')
+        .select('id, step_number, estimated_duration, station_id, order_item_id, order_items!inner(order_id)')
         .in('status', ['pending', 'fired'])
         .order('step_number', { ascending: true }),
       supabase
         .from('order_steps')
-        .select('station_id, order_items!inner(order_id)')
+        .select('station_id, order_item_id, order_items!inner(order_id)')
         .eq('status', 'in_progress'),
     ]);
 
-    // Build set of order_id:station_id pairs already occupied by an in-progress step.
-    const busy = new Set<string>();
+    // Dishes with an in_progress step — no further steps for these until they complete.
+    const busyDish    = new Set<string>(); // order_item_id
+    // Station slots occupied within an order.
+    const busyStation = new Set<string>(); // `${order_id}:${station_id}`
+
     for (const s of inProgressData ?? []) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const orderId = (s.order_items as any)?.order_id;
-      if (orderId) busy.add(`${orderId}:${s.station_id}`);
+      busyDish.add(s.order_item_id);
+      if (orderId) busyStation.add(`${orderId}:${s.station_id}`);
     }
+
+    // Dishes handled in this cycle (either in_progress already, or we just scheduled them).
+    const handledDish = new Set<string>();
 
     let newlyScheduled = 0;
     for (const step of actionableData ?? []) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const orderId = (step.order_items as any)?.order_id;
       if (!orderId) continue;
-      const key = `${orderId}:${step.station_id}`;
-      if (busy.has(key)) continue;
-      if (scheduledRef.current.has(step.id)) continue;
-      // Mark busy immediately so we don't double-schedule this slot in the same cycle.
-      busy.add(key);
+
+      // Dish sequential constraint: if any earlier (or same) step for this dish is
+      // in_progress or already in flight, skip all subsequent steps for this dish.
+      if (busyDish.has(step.order_item_id))    continue;
+      if (handledDish.has(step.order_item_id)) continue;
+
+      // Mark dish handled now — whether we schedule or not, don't look at later steps.
+      handledDish.add(step.order_item_id);
+
+      if (scheduledRef.current.has(step.id)) continue; // already in the cook pipeline
+
+      // Station constraint: cross-dish, same station, same order.
+      const stationKey = `${orderId}:${step.station_id}`;
+      if (busyStation.has(stationKey)) continue;
+
+      busyStation.add(stationKey);
       scheduledRef.current.add(step.id);
       scheduleStep(step.id, step.estimated_duration, presetCfgRef.current.delayChance);
       newlyScheduled++;
