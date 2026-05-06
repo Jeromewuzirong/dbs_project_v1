@@ -73,8 +73,8 @@ export default function SimulationBar() {
         return;
       }
 
-      const extraMs  = Math.random() < delayChance ? (30 + Math.random() * 60) * 1000 : 0;
-      const cookMs   = estimatedDuration * 1000 + extraMs;
+      const extraMs  = Math.random() < delayChance ? (30 + Math.random() * 60) * 100 : 0;
+      const cookMs   = estimatedDuration * 100 + extraMs;
       console.log(`[sim] scheduled completion for step ${id} in ${(cookMs / 1000).toFixed(1)}s`);
 
       setTimeout(async () => {
@@ -117,6 +117,12 @@ export default function SimulationBar() {
   // Create one order with 1–3 random menu items.
   const createOrder = useCallback(async (items: CatalogItem[]) => {
     if (!runningRef.current) return;
+
+    const { count: activeCount } = await supabase
+      .from('orders')
+      .select('id', { count: 'exact', head: true })
+      .in('status', ['pending', 'active']);
+    if ((activeCount ?? 0) >= 6) return;
 
     const shuffled = [...items].sort(() => Math.random() - 0.5);
     const count    = 1 + Math.floor(Math.random() * 3);
