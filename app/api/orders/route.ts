@@ -161,7 +161,32 @@ export async function POST(request: Request) {
     );
   }
 
-  // --- 6. Return full order with items + steps --------------------------
+  // --- 6. Fire steps whose fire_at is now or already past --------------
+  const now          = new Date();
+  const stepsToFire  = scheduled.filter(s => s.fire_at <= now);
+
+  if (stepsToFire.length > 0) {
+    const fireResults = await Promise.all(
+      stepsToFire.map(s =>
+        adminClient
+          .from('order_steps')
+          .update({ status: 'fired' })
+          .eq('id', s.id),
+      ),
+    );
+    const failedFire = fireResults.find(r => r.error);
+    if (failedFire) {
+      await rollback();
+      return NextResponse.json(
+        { error: 'Failed to fire initial steps', detail: failedFire.error?.message },
+        { status: 500 },
+      );
+    }
+  }
+
+  const firedIds = new Set(stepsToFire.map(s => s.id));
+
+  // --- 7. Return full order with items + steps --------------------------
   const scheduledById = Object.fromEntries(scheduled.map(s => [s.id, s]));
 
   const responseItems = orderItems.map(oi => ({
@@ -170,6 +195,7 @@ export async function POST(request: Request) {
       .filter(s => s.order_item_id === oi.id)
       .map(s => ({
         ...s,
+        status:   firedIds.has(s.id as string) ? 'fired' : s.status,
         fire_at:  scheduledById[s.id as string].fire_at.toISOString(),
         ready_at: scheduledById[s.id as string].ready_at.toISOString(),
       })),
