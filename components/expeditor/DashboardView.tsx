@@ -91,6 +91,9 @@ export default function DashboardView({ initialOrders, stations }: Props) {
             <Link href="/" className="text-gray-500 hover:text-white transition-colors text-sm font-medium">
               ← Back
             </Link>
+            <Link href="/history" className="text-gray-500 hover:text-white transition-colors text-sm font-medium">
+              History
+            </Link>
             <h1 className="text-lg font-bold tracking-wide text-white">Expeditor</h1>
           </div>
           <div className="flex gap-4 text-sm text-gray-400">
