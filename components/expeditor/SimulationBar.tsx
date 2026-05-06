@@ -92,29 +92,29 @@ export default function SimulationBar() {
   // Greedy cook poll: pick up any pending or fired step, subject to two constraints:
   // 1. Station-level: no other in_progress step at the same station for the same order.
   // 2. Dish-level sequential: no step N+1 while step N is still in_progress or scheduled.
-  //    Steps are sorted by step_number asc, so the first actionable step per dish is always
-  //    the earliest one. If it's already in scheduledRef, the dish is considered handled.
+  //
+  // We fetch all active (non-completed) steps in ONE query so the in_progress and
+  // pending/fired views are a consistent snapshot. Using two parallel queries created a
+  // race: if a step transitioned fired→in_progress between them it would vanish from
+  // both sets, making later steps appear unguarded and schedulable out of order.
   const pollFiredSteps = useCallback(async () => {
     if (!runningRef.current) return;
 
-    const [{ data: actionableData }, { data: inProgressData }] = await Promise.all([
-      supabase
-        .from('order_steps')
-        .select('id, step_number, estimated_duration, station_id, order_item_id, order_items!inner(order_id)')
-        .in('status', ['pending', 'fired'])
-        .order('step_number', { ascending: true }),
-      supabase
-        .from('order_steps')
-        .select('station_id, order_item_id, order_items!inner(order_id)')
-        .eq('status', 'in_progress'),
-    ]);
+    const { data: allActive } = await supabase
+      .from('order_steps')
+      .select('id, step_number, estimated_duration, station_id, order_item_id, status, order_items!inner(order_id)')
+      .in('status', ['pending', 'fired', 'in_progress'])
+      .order('step_number', { ascending: true });
+
+    const active = allActive ?? [];
 
     // Dishes with an in_progress step — no further steps for these until they complete.
     const busyDish    = new Set<string>(); // order_item_id
     // Station slots occupied within an order.
     const busyStation = new Set<string>(); // `${order_id}:${station_id}`
 
-    for (const s of inProgressData ?? []) {
+    for (const s of active) {
+      if (s.status !== 'in_progress') continue;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const orderId = (s.order_items as any)?.order_id;
       busyDish.add(s.order_item_id);
@@ -125,18 +125,21 @@ export default function SimulationBar() {
     const handledDish = new Set<string>();
 
     let newlyScheduled = 0;
-    for (const step of actionableData ?? []) {
+    for (const step of active) {
+      if (step.status === 'in_progress') continue; // already handled above
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const orderId = (step.order_items as any)?.order_id;
-      if (!orderId) continue;
 
       // Dish sequential constraint: if any earlier (or same) step for this dish is
       // in_progress or already in flight, skip all subsequent steps for this dish.
-      if (busyDish.has(step.order_item_id))    continue;
+      // Mark the dish handled first so later steps in this loop are always blocked.
+      if (busyDish.has(step.order_item_id))    { handledDish.add(step.order_item_id); continue; }
       if (handledDish.has(step.order_item_id)) continue;
 
-      // Mark dish handled now — whether we schedule or not, don't look at later steps.
       handledDish.add(step.order_item_id);
+
+      if (!orderId) continue; // can't determine order — skip scheduling but dish is marked handled
 
       if (scheduledRef.current.has(step.id)) continue; // already in the cook pipeline
 
@@ -150,9 +153,10 @@ export default function SimulationBar() {
       newlyScheduled++;
     }
 
+    const inProgressCount = active.filter(s => s.status === 'in_progress').length;
     console.log(
-      `[sim] poll — actionable: ${actionableData?.length ?? 0}`,
-      `in_progress: ${inProgressData?.length ?? 0}`,
+      `[sim] poll — active: ${active.length}`,
+      `in_progress: ${inProgressCount}`,
       `newly scheduled: ${newlyScheduled}`,
     );
   }, [supabase, scheduleStep]);
