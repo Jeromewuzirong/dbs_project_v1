@@ -1,6 +1,18 @@
+'use client';
+
 import Link from 'next/link';
+import { useState } from 'react';
 
 export default function Home() {
+  const [resetting, setResetting] = useState(false);
+
+  async function handleReset() {
+    if (!confirm('Are you sure? This will delete all active orders.')) return;
+    setResetting(true);
+    await fetch('/api/reset', { method: 'POST' });
+    setResetting(false);
+  }
+
   return (
     <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center px-6">
       <div className="text-center mb-16">
@@ -31,6 +43,14 @@ export default function Home() {
           Cook Station
         </Link>
       </div>
+
+      <button
+        onClick={handleReset}
+        disabled={resetting}
+        className="mt-10 text-sm text-gray-600 hover:text-gray-400 disabled:opacity-40 transition-colors"
+      >
+        {resetting ? 'Resetting…' : 'Reset Kitchen'}
+      </button>
     </div>
   );
 }

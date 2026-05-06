@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import StepCard from './StepCard';
@@ -114,7 +115,12 @@ export default function StationView({ stations }: Props) {
 
       {/* Header */}
       <header className="flex items-center justify-between px-6 py-4 border-b border-gray-800 bg-gray-900 shrink-0">
-        <h1 className="text-lg font-bold tracking-wide text-white">Kitchen Orchestrator</h1>
+        <div className="flex items-center gap-4">
+          <Link href="/" className="text-gray-500 hover:text-white transition-colors text-sm font-medium">
+            ← Back
+          </Link>
+          <h1 className="text-lg font-bold tracking-wide text-white">Kitchen Orchestrator</h1>
+        </div>
         <select
           value={stationId ?? ''}
           onChange={handleStationChange}

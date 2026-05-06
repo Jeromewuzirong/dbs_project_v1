@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import {
   transformOrders,
@@ -86,7 +87,12 @@ export default function DashboardView({ initialOrders, stations }: Props) {
       <div className="flex-1 flex flex-col overflow-hidden">
         <SimulationBar />
         <header className="px-6 py-4 border-b border-gray-800 bg-gray-900 shrink-0 flex items-center justify-between">
-          <h1 className="text-lg font-bold tracking-wide text-white">Expeditor</h1>
+          <div className="flex items-center gap-4">
+            <Link href="/" className="text-gray-500 hover:text-white transition-colors text-sm font-medium">
+              ← Back
+            </Link>
+            <h1 className="text-lg font-bold tracking-wide text-white">Expeditor</h1>
+          </div>
           <div className="flex gap-4 text-sm text-gray-400">
             <span><span className="text-white font-semibold">{activeCount}</span> active</span>
             <span><span className="text-white font-semibold">{pendingCount}</span> pending</span>
