@@ -66,15 +66,19 @@ export default function SimulationBar() {
     setTimeout(async () => {
       if (!runningRef.current) return;
       const startRes = await fetch(`/api/steps/${id}/start`, { method: 'POST' });
+      console.log(`[sim] start  step ${id} → ${startRes.status}`);
       // 409 means the step was already started by someone else — that's fine.
       if (!startRes.ok && startRes.status !== 409) return;
 
       const extraMs  = Math.random() < delayChance ? (30 + Math.random() * 60) * 1000 : 0;
       const cookMs   = estimatedDuration * 1000 + extraMs;
+      console.log(`[sim] scheduled completion for step ${id} in ${(cookMs / 1000).toFixed(1)}s`);
 
       setTimeout(async () => {
         if (!runningRef.current) return;
-        await fetch(`/api/steps/${id}/complete`, { method: 'POST' });
+        console.log(`[sim] complete step ${id} — calling POST /api/steps/${id}/complete`);
+        const completeRes = await fetch(`/api/steps/${id}/complete`, { method: 'POST' });
+        console.log(`[sim] complete step ${id} → ${completeRes.status}`);
         // 409/404 = already completed or not found — silently ignored.
         scheduledRef.current.delete(id);
       }, cookMs);
@@ -85,10 +89,12 @@ export default function SimulationBar() {
   const pollFiredSteps = useCallback(async () => {
     if (!runningRef.current) return;
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('order_steps')
       .select('id, estimated_duration')
       .eq('status', 'fired');
+
+    console.log('[sim] poll — fired steps found:', data?.length ?? 0, error ? `(error: ${error.message})` : '');
 
     for (const step of data ?? []) {
       if (scheduledRef.current.has(step.id)) continue;
@@ -121,6 +127,7 @@ export default function SimulationBar() {
   }, []);
 
   function handleStart() {
+    console.log('sim: start called');
     if (!catalog || catalog.length === 0 || running) return;
     const items = catalog; // narrowed to non-null by the check above
 
@@ -133,7 +140,10 @@ export default function SimulationBar() {
     // Fire one order immediately, then on the interval.
     createOrder(items);
     orderTimer.current    = setInterval(() => createOrder(items), intervalMs);
-    cookPollTimer.current = setInterval(pollFiredSteps, 2000);
+    cookPollTimer.current = setInterval(() => {
+      console.log('sim: interval tick');
+      pollFiredSteps();
+    }, 2000);
   }
 
   function handleStop() {
