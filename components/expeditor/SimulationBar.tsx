@@ -18,11 +18,12 @@ interface CatalogItem {
 }
 
 export default function SimulationBar() {
-  const [supabase]         = useState(() => createClient());
-  const [open, setOpen]    = useState(false);
-  const [preset, setPreset] = useState<PresetKey>('steady');
-  const [running, setRunning] = useState(false);
-  const [catalog, setCatalog] = useState<CatalogItem[] | null>(null);
+  const [supabase]              = useState(() => createClient());
+  const [open, setOpen]         = useState(false);
+  const [preset, setPreset]     = useState<PresetKey>('steady');
+  const [ordersRunning, setOrdersRunning]   = useState(false);
+  const [kitchenRunning, setKitchenRunning] = useState(false);
+  const [catalog, setCatalog]   = useState<CatalogItem[] | null>(null);
   const [loadingCatalog, setLoadingCatalog] = useState(false);
 
   // Refs: survive re-renders without triggering them; readable inside async callbacks.
@@ -166,16 +167,16 @@ export default function SimulationBar() {
 
   function handleStart() {
     console.log('sim: start called');
-    if (!catalog || catalog.length === 0 || running) return;
-    const items = catalog; // narrowed to non-null by the check above
+    if (!catalog || catalog.length === 0 || ordersRunning || kitchenRunning) return;
+    const items = catalog;
 
     presetCfgRef.current = PRESETS[preset];
     runningRef.current   = true;
-    setRunning(true);
+    setOrdersRunning(true);
+    setKitchenRunning(true);
 
     const intervalMs = (60 / presetCfgRef.current.ordersPerMin) * 1000;
 
-    // Fire one order immediately, then on the interval.
     createOrder(items);
     orderTimer.current    = setInterval(() => createOrder(items), intervalMs);
     cookPollTimer.current = setInterval(() => {
@@ -184,12 +185,21 @@ export default function SimulationBar() {
     }, 2000);
   }
 
-  function handleStop() {
+  function handleStopOrders() {
+    setOrdersRunning(false);
+    if (orderTimer.current) clearInterval(orderTimer.current);
+    orderTimer.current = null;
+  }
+
+  function handleStopKitchen() {
     runningRef.current = false;
-    setRunning(false);
+    setOrdersRunning(false);
+    setKitchenRunning(false);
     scheduledRef.current.clear();
     if (orderTimer.current)    clearInterval(orderTimer.current);
     if (cookPollTimer.current) clearInterval(cookPollTimer.current);
+    orderTimer.current    = null;
+    cookPollTimer.current = null;
   }
 
   // Clean up on unmount.
@@ -211,13 +221,13 @@ export default function SimulationBar() {
         <span className="flex items-center gap-2 text-gray-500">
           <span className="tabular-nums">{open ? '▾' : '▸'}</span>
           <span className="font-semibold uppercase tracking-wider">Simulation</span>
-          {running && (
-            <span className="text-green-400 font-semibold">
-              · Running — {PRESETS[preset].label}
+          {kitchenRunning && (
+            <span className={`font-semibold ${ordersRunning ? 'text-green-400' : 'text-amber-400'}`}>
+              · {ordersRunning ? 'Running' : 'Draining'} — {PRESETS[preset].label}
             </span>
           )}
         </span>
-        {!running && (
+        {!kitchenRunning && (
           <span className="text-gray-700 italic">Idle</span>
         )}
       </button>
@@ -234,14 +244,14 @@ export default function SimulationBar() {
               {(Object.keys(PRESETS) as PresetKey[]).map(key => (
                 <button
                   key={key}
-                  disabled={running}
+                  disabled={ordersRunning || kitchenRunning}
                   onClick={() => setPreset(key)}
                   className={[
                     'px-3 py-1.5 rounded text-xs font-semibold transition-colors',
                     preset === key
                       ? 'bg-blue-600 text-white'
                       : 'bg-gray-800 text-gray-400 hover:text-white',
-                    running ? 'opacity-40 cursor-not-allowed' : '',
+                    (ordersRunning || kitchenRunning) ? 'opacity-40 cursor-not-allowed' : '',
                   ].join(' ')}
                 >
                   {PRESETS[key].label}
@@ -256,13 +266,23 @@ export default function SimulationBar() {
 
               <div className="flex-1" />
 
-              {running ? (
-                <button
-                  onClick={handleStop}
-                  className="px-4 py-1.5 rounded text-xs font-bold bg-red-700 hover:bg-red-600 text-white transition-colors"
-                >
-                  ■ Stop
-                </button>
+              {kitchenRunning ? (
+                <div className="flex gap-2">
+                  {ordersRunning && (
+                    <button
+                      onClick={handleStopOrders}
+                      className="px-4 py-1.5 rounded text-xs font-bold bg-amber-700 hover:bg-amber-600 text-white transition-colors"
+                    >
+                      ■ Stop Orders
+                    </button>
+                  )}
+                  <button
+                    onClick={handleStopKitchen}
+                    className="px-4 py-1.5 rounded text-xs font-bold bg-red-700 hover:bg-red-600 text-white transition-colors"
+                  >
+                    ■ Stop Kitchen
+                  </button>
+                </div>
               ) : (
                 <button
                   onClick={handleStart}
