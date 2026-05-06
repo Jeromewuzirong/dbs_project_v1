@@ -85,18 +85,26 @@ export default function SimulationBar() {
     }, Math.random() * 3000);
   }, []);
 
-  // Poll for fired steps and hand each one to a simulated cook.
+  // Poll for fired steps and overdue pending steps, hand each to a simulated cook.
   const pollFiredSteps = useCallback(async () => {
     if (!runningRef.current) return;
 
-    const { data, error } = await supabase
-      .from('order_steps')
-      .select('id, estimated_duration')
-      .eq('status', 'fired');
+    const now = new Date().toISOString();
 
-    console.log('[sim] poll — fired steps found:', data?.length ?? 0, error ? `(error: ${error.message})` : '');
+    const [{ data: firedData, error: firedErr }, { data: overdueData, error: overdueErr }] =
+      await Promise.all([
+        supabase.from('order_steps').select('id, estimated_duration').eq('status', 'fired'),
+        supabase.from('order_steps').select('id, estimated_duration').eq('status', 'pending').lte('fire_at', now),
+      ]);
 
-    for (const step of data ?? []) {
+    const steps = [...(firedData ?? []), ...(overdueData ?? [])];
+    console.log(
+      '[sim] poll — actionable steps:', steps.length,
+      `(fired: ${firedData?.length ?? 0}, overdue pending: ${overdueData?.length ?? 0})`,
+      firedErr || overdueErr ? `errors: ${firedErr?.message} ${overdueErr?.message}` : '',
+    );
+
+    for (const step of steps) {
       if (scheduledRef.current.has(step.id)) continue;
       scheduledRef.current.add(step.id);
       scheduleStep(step.id, step.estimated_duration, presetCfgRef.current.delayChance);

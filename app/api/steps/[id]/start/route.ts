@@ -13,7 +13,7 @@ export async function POST(
   if (stepErr || !step) {
     return NextResponse.json({ error: 'Step not found' }, { status: 404 });
   }
-  if (step.status !== 'fired') {
+  if (step.status !== 'fired' && step.status !== 'pending') {
     return NextResponse.json(
       { error: `Cannot start a step with status '${step.status}'` },
       { status: 409 },
