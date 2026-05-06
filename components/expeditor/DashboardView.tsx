@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import {
   transformOrders,
@@ -17,9 +17,14 @@ interface Props {
   stations: RawStation[];
 }
 
+type DisplayOrder = ActiveOrder & { completing?: boolean };
+
+const COMPLETION_ANIM_MS = 500;
+
 export default function DashboardView({ initialOrders, stations }: Props) {
   const [supabase] = useState(() => createClient());
-  const [orders, setOrders] = useState<ActiveOrder[]>(initialOrders);
+  const [displayOrders, setDisplayOrders] = useState<DisplayOrder[]>(initialOrders);
+  const displayRef = useRef<DisplayOrder[]>(initialOrders);
 
   const refetch = useCallback(async () => {
     const { data, error } = await supabase
@@ -30,7 +35,33 @@ export default function DashboardView({ initialOrders, stations }: Props) {
 
     if (error || !data) return;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    setOrders(transformOrders(data as any[]));
+    const newOrders = transformOrders(data as any[]);
+    const newIds    = new Set(newOrders.map(o => o.id));
+    const newMap    = new Map(newOrders.map(o => [o.id, o]));
+
+    // Merge: update existing, mark departing as completing, append new
+    const next: DisplayOrder[] = displayRef.current.map(o =>
+      newIds.has(o.id)
+        ? { ...newMap.get(o.id)!, completing: false }
+        : { ...o, completing: true }
+    );
+    const existingIds = new Set(displayRef.current.map(o => o.id));
+    newOrders.filter(o => !existingIds.has(o.id)).forEach(o =>
+      next.push({ ...o, completing: false })
+    );
+
+    const departingIds = next.filter(o => o.completing).map(o => o.id);
+
+    displayRef.current = next;
+    setDisplayOrders([...next]);
+
+    if (departingIds.length > 0) {
+      setTimeout(() => {
+        const cleaned = displayRef.current.filter(o => !departingIds.includes(o.id));
+        displayRef.current = cleaned;
+        setDisplayOrders([...cleaned]);
+      }, COMPLETION_ANIM_MS);
+    }
   }, [supabase]);
 
   useEffect(() => {
@@ -43,9 +74,10 @@ export default function DashboardView({ initialOrders, stations }: Props) {
     return () => { supabase.removeChannel(channel); };
   }, [supabase, refetch]);
 
-  const stationSummaries = deriveStationSummaries(stations, orders);
-  const activeCount  = orders.filter(o => o.status === 'active').length;
-  const pendingCount = orders.filter(o => o.status === 'pending').length;
+  const activeOrders  = displayOrders.filter(o => !o.completing);
+  const stationSummaries = deriveStationSummaries(stations, activeOrders);
+  const activeCount  = activeOrders.filter(o => o.status === 'active').length;
+  const pendingCount = activeOrders.filter(o => o.status === 'pending').length;
 
   return (
     <div className="flex h-screen">
@@ -62,12 +94,12 @@ export default function DashboardView({ initialOrders, stations }: Props) {
         </header>
 
         <div className="flex-1 overflow-y-auto p-4">
-          {orders.length === 0 ? (
+          {displayOrders.length === 0 ? (
             <p className="text-center text-gray-500 py-24 text-sm">No active orders.</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {orders.map(order => (
-                <OrderCard key={order.id} order={order} />
+              {displayOrders.map(order => (
+                <OrderCard key={order.id} order={order} completing={order.completing} />
               ))}
             </div>
           )}

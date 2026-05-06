@@ -12,7 +12,7 @@ function formatCountdown(ms: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-export default function OrderCard({ order }: { order: ActiveOrder }) {
+export default function OrderCard({ order, completing = false }: { order: ActiveOrder; completing?: boolean }) {
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -24,7 +24,11 @@ export default function OrderCard({ order }: { order: ActiveOrder }) {
   const isLate      = remainingMs < 0;
 
   return (
-    <div className="bg-gray-900 border border-gray-700 rounded-xl flex flex-col h-64 overflow-hidden">
+    <div
+      className={`bg-gray-900 border border-gray-700 rounded-xl flex flex-col h-64 overflow-hidden
+                  transition-all duration-500 origin-top
+                  ${completing ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}
+    >
 
       {/* Header */}
       <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between shrink-0">

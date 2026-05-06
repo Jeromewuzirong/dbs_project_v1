@@ -128,15 +128,15 @@ export default function StationView({ stations }: Props) {
       </header>
 
       {/* Station label */}
-      <div className="px-6 py-3 bg-gray-900 border-b border-gray-800 shrink-0">
-        <span className="text-3xl font-bold text-white">
+      <div className="px-6 py-5 bg-gray-900 border-b border-gray-800 shrink-0">
+        <p className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1">Now Serving</p>
+        <span className="text-5xl font-black text-white tracking-tight">
           {selectedStation?.name ?? '—'}
         </span>
-        <span className="ml-2 text-sm text-gray-500 uppercase tracking-wider">station</span>
       </div>
 
       {/* Queue */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      <div className="flex-1 overflow-y-auto p-5 space-y-4">
         {loading && (
           <p className="text-center text-gray-500 py-12 text-sm">Loading…</p>
         )}
