@@ -120,7 +120,7 @@ export default function SimulationBar() {
     const picked   = shuffled.slice(0, count);
 
     const maxDuration     = Math.max(...picked.map(m => m.totalDuration));
-    const targetServeTime = new Date(Date.now() + (maxDuration + 120) * 1000).toISOString();
+    const targetServeTime = new Date(Date.now() + (maxDuration + 10) * 1000).toISOString();
     const tableNumber     = 1 + Math.floor(Math.random() * 20);
 
     await fetch('/api/orders', {
