@@ -88,30 +88,51 @@ export default function SimulationBar() {
     }, Math.random() * 3000);
   }, []);
 
-  // Poll for fired steps and overdue pending steps, hand each to a simulated cook.
+  // Greedy cook poll: pick up any pending or fired step whose station is free
+  // (no in_progress step at the same station for the same order).
   const pollFiredSteps = useCallback(async () => {
     if (!runningRef.current) return;
 
-    const now = new Date().toISOString();
+    const [{ data: actionableData }, { data: inProgressData }] = await Promise.all([
+      supabase
+        .from('order_steps')
+        .select('id, step_number, estimated_duration, station_id, order_items!inner(order_id)')
+        .in('status', ['pending', 'fired'])
+        .order('step_number', { ascending: true }),
+      supabase
+        .from('order_steps')
+        .select('station_id, order_items!inner(order_id)')
+        .eq('status', 'in_progress'),
+    ]);
 
-    const [{ data: firedData, error: firedErr }, { data: overdueData, error: overdueErr }] =
-      await Promise.all([
-        supabase.from('order_steps').select('id, estimated_duration').eq('status', 'fired'),
-        supabase.from('order_steps').select('id, estimated_duration').eq('status', 'pending').lte('fire_at', now),
-      ]);
+    // Build set of order_id:station_id pairs already occupied by an in-progress step.
+    const busy = new Set<string>();
+    for (const s of inProgressData ?? []) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const orderId = (s.order_items as any)?.order_id;
+      if (orderId) busy.add(`${orderId}:${s.station_id}`);
+    }
 
-    const steps = [...(firedData ?? []), ...(overdueData ?? [])];
-    console.log(
-      '[sim] poll — actionable steps:', steps.length,
-      `(fired: ${firedData?.length ?? 0}, overdue pending: ${overdueData?.length ?? 0})`,
-      firedErr || overdueErr ? `errors: ${firedErr?.message} ${overdueErr?.message}` : '',
-    );
-
-    for (const step of steps) {
+    let newlyScheduled = 0;
+    for (const step of actionableData ?? []) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const orderId = (step.order_items as any)?.order_id;
+      if (!orderId) continue;
+      const key = `${orderId}:${step.station_id}`;
+      if (busy.has(key)) continue;
       if (scheduledRef.current.has(step.id)) continue;
+      // Mark busy immediately so we don't double-schedule this slot in the same cycle.
+      busy.add(key);
       scheduledRef.current.add(step.id);
       scheduleStep(step.id, step.estimated_duration, presetCfgRef.current.delayChance);
+      newlyScheduled++;
     }
+
+    console.log(
+      `[sim] poll — actionable: ${actionableData?.length ?? 0}`,
+      `in_progress: ${inProgressData?.length ?? 0}`,
+      `newly scheduled: ${newlyScheduled}`,
+    );
   }, [supabase, scheduleStep]);
 
   // Create one order with 1–3 random menu items.
