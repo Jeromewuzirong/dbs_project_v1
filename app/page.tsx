@@ -24,11 +24,11 @@ export default function Home() {
         </p>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
+      <div className="flex flex-col sm:flex-row gap-4 w-full max-w-xl">
         <Link
           href="/dashboard"
           className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-blue-600 hover:bg-blue-500 active:bg-blue-700
-                     text-white font-bold text-lg py-6 px-8 transition-colors shadow-lg shadow-blue-900/40"
+                     text-white font-bold text-lg py-6 px-6 transition-colors shadow-lg shadow-blue-900/40"
         >
           <span className="text-2xl">📋</span>
           Expeditor Dashboard
@@ -37,10 +37,19 @@ export default function Home() {
         <Link
           href="/station"
           className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600
-                     text-black font-bold text-lg py-6 px-8 transition-colors shadow-lg shadow-amber-900/40"
+                     text-black font-bold text-lg py-6 px-6 transition-colors shadow-lg shadow-amber-900/40"
         >
           <span className="text-2xl">🍳</span>
           Cook Station
+        </Link>
+
+        <Link
+          href="/history"
+          className="flex-1 flex items-center justify-center gap-2 rounded-2xl border border-gray-700 hover:border-gray-500 hover:bg-gray-900
+                     text-gray-400 hover:text-white font-bold text-lg py-6 px-6 transition-colors"
+        >
+          <span className="text-2xl">📜</span>
+          History
         </Link>
       </div>
 
