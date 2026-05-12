@@ -24,7 +24,7 @@ export default function Home() {
         </p>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4 w-full max-w-xl">
+      <div className="flex flex-col sm:flex-row gap-4 w-full max-w-2xl">
         <Link
           href="/dashboard"
           className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-blue-600 hover:bg-blue-500 active:bg-blue-700
@@ -41,6 +41,15 @@ export default function Home() {
         >
           <span className="text-2xl">🍳</span>
           Cook Station
+        </Link>
+
+        <Link
+          href="/order"
+          className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-green-600 hover:bg-green-500 active:bg-green-700
+                     text-white font-bold text-lg py-6 px-6 transition-colors shadow-lg shadow-green-900/40"
+        >
+          <span className="text-2xl">🧾</span>
+          Place Order
         </Link>
 
         <Link
