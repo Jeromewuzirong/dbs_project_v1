@@ -9,8 +9,7 @@ import type { OrderItemWithSteps } from '@/lib/scheduler';
 
 interface CreateOrderBody {
   table_number: number;
-  target_serve_time: string; // ISO
-  items: string[];           // menu_item_id[]
+  items: string[];  // menu_item_id[]
 }
 
 export async function POST(request: Request) {
@@ -22,15 +21,36 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const { table_number, target_serve_time, items } = body;
+  const { table_number, items } = body;
   if (
     typeof table_number !== 'number' ||
-    typeof target_serve_time !== 'string' ||
     !Array.isArray(items) ||
     items.length === 0
   ) {
     return NextResponse.json({ error: 'Missing or invalid fields' }, { status: 400 });
   }
+
+  // --- Compute target_serve_time from recipe durations ------------------
+  // target = now + max(total_duration per distinct dish) + 10s buffer
+  const uniqueItemIds = [...new Set(items)];
+  const { data: durationRows, error: durErr } = await adminClient
+    .from('recipe_steps')
+    .select('menu_item_id, estimated_duration')
+    .in('menu_item_id', uniqueItemIds);
+
+  if (durErr || !durationRows) {
+    return NextResponse.json(
+      { error: 'Failed to fetch recipe durations', detail: durErr?.message },
+      { status: 500 },
+    );
+  }
+
+  const durationByItem: Record<string, number> = {};
+  for (const rs of durationRows) {
+    durationByItem[rs.menu_item_id] = (durationByItem[rs.menu_item_id] ?? 0) + rs.estimated_duration;
+  }
+  const maxDuration = Math.max(...uniqueItemIds.map(id => durationByItem[id] ?? 0));
+  const target_serve_time = new Date(Date.now() + (maxDuration + 10) * 1000).toISOString();
 
   // --- 1. Insert order ---------------------------------------------------
   const { data: order, error: orderErr } = await adminClient

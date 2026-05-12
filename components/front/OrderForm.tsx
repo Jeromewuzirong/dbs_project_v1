@@ -8,16 +8,9 @@ interface Props {
   menuItems: MenuItem[];
 }
 
-function defaultServeTime(): string {
-  const d = new Date(Date.now() + 15 * 60 * 1000);
-  // datetime-local format: YYYY-MM-DDTHH:MM
-  return d.toISOString().slice(0, 16);
-}
-
 export default function OrderForm({ menuItems }: Props) {
   const [tableNumber, setTableNumber] = useState(1);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
-  const [targetServeTime, setTargetServeTime] = useState(defaultServeTime);
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -35,7 +28,6 @@ export default function OrderForm({ menuItems }: Props) {
   function reset() {
     setTableNumber(1);
     setQuantities({});
-    setTargetServeTime(defaultServeTime());
     setStatus('idle');
     setErrorMsg('');
   }
@@ -62,7 +54,6 @@ export default function OrderForm({ menuItems }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           table_number: tableNumber,
-          target_serve_time: new Date(targetServeTime).toISOString(),
           items,
         }),
       });
@@ -164,21 +155,6 @@ export default function OrderForm({ menuItems }: Props) {
             );
           })}
         </ul>
-      </section>
-
-      {/* Target serve time */}
-      <section>
-        <label className="block text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">
-          Target serve time
-        </label>
-        <input
-          type="datetime-local"
-          value={targetServeTime}
-          onChange={e => setTargetServeTime(e.target.value)}
-          className="bg-gray-800 text-white border border-gray-700 rounded-lg px-4 py-2
-                     focus:outline-none focus:ring-2 focus:ring-green-500
-                     [color-scheme:dark]"
-        />
       </section>
 
       {/* Error */}
