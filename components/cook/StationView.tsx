@@ -110,10 +110,13 @@ export default function StationView({ stations }: Props) {
     fetch('/api/chefs')
       .then(r => r.json())
       .then((data: { id: string; name: string; chef_stations: { station_id: string }[] }[]) => {
-        const filtered = data
-          .filter(c => c.chef_stations.some(cs => cs.station_id === stationId))
-          .map(c => ({ id: c.id, name: c.name }))
-          .sort((a, b) => a.name.localeCompare(b.name));
+        const seen = new Map<string, ChefOption>();
+        for (const c of data) {
+          if (!seen.has(c.id) && c.chef_stations.some(cs => cs.station_id === stationId)) {
+            seen.set(c.id, { id: c.id, name: c.name });
+          }
+        }
+        const filtered = [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
         setChefOptions(filtered);
       })
       .catch(() => {});
