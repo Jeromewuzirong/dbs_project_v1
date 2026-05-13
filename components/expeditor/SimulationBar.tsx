@@ -25,6 +25,8 @@ export default function SimulationBar() {
   const [kitchenRunning, setKitchenRunning] = useState(false);
   const [catalog, setCatalog]   = useState<CatalogItem[] | null>(null);
   const [loadingCatalog, setLoadingCatalog] = useState(false);
+  // Non-null while the "existing orders" confirmation dialog is visible.
+  const [existingOrderCount, setExistingOrderCount] = useState<number | null>(null);
 
   // Refs: survive re-renders without triggering them; readable inside async callbacks.
   const runningRef    = useRef(false);
@@ -237,11 +239,7 @@ export default function SimulationBar() {
     }).catch(() => { /* swallow — don't crash the generator loop */ });
   }, [supabase]);
 
-  function handleStart() {
-    console.log('sim: start called');
-    if (!catalog || catalog.length === 0 || ordersRunning || kitchenRunning) return;
-    const items = catalog;
-
+  function launchKitchen(items: CatalogItem[]) {
     presetCfgRef.current = PRESETS[preset];
     runningRef.current   = true;
     setOrdersRunning(true);
@@ -255,6 +253,33 @@ export default function SimulationBar() {
       console.log('sim: interval tick');
       pollFiredSteps();
     }, 2000);
+  }
+
+  async function handleStart() {
+    if (!catalog || catalog.length === 0 || ordersRunning || kitchenRunning) return;
+
+    const { count } = await supabase
+      .from('orders')
+      .select('id', { count: 'exact', head: true })
+      .in('status', ['pending', 'active']);
+
+    if ((count ?? 0) > 0) {
+      setExistingOrderCount(count!);
+      return;
+    }
+
+    launchKitchen(catalog);
+  }
+
+  function handleConfirmContinue() {
+    setExistingOrderCount(null);
+    launchKitchen(catalog!);
+  }
+
+  async function handleConfirmReset() {
+    setExistingOrderCount(null);
+    await fetch('/api/reset', { method: 'POST' });
+    launchKitchen(catalog!);
   }
 
   function handleStopOrders() {
@@ -353,6 +378,24 @@ export default function SimulationBar() {
                     className="px-4 py-1.5 rounded text-xs font-bold bg-red-700 hover:bg-red-600 text-white transition-colors"
                   >
                     ■ Stop Kitchen
+                  </button>
+                </div>
+              ) : existingOrderCount !== null ? (
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className="text-xs text-amber-400 font-medium">
+                    {existingOrderCount} active order{existingOrderCount !== 1 ? 's' : ''} from a previous session. Continue them or reset first?
+                  </span>
+                  <button
+                    onClick={handleConfirmContinue}
+                    className="px-4 py-1.5 rounded text-xs font-bold bg-green-700 hover:bg-green-600 text-white transition-colors"
+                  >
+                    Continue
+                  </button>
+                  <button
+                    onClick={handleConfirmReset}
+                    className="px-4 py-1.5 rounded text-xs font-bold bg-red-700 hover:bg-red-600 text-white transition-colors"
+                  >
+                    Reset Kitchen
                   </button>
                 </div>
               ) : (
