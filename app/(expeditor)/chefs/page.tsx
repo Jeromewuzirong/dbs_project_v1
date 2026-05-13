@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import ChefManager from '@/components/expeditor/ChefManager';
+import type { Chef } from '@/components/expeditor/ChefManager';
 
 export default async function ChefsPage() {
   const supabase = await createClient();
@@ -12,7 +13,7 @@ export default async function ChefsPage() {
       .order('display_order'),
     supabase
       .from('chefs')
-      .select('id, name, station_id, stations(name, display_order)')
+      .select('id, name, created_at, chef_stations(station_id, stations(id, name, display_order))')
       .order('name'),
   ]);
 
@@ -36,10 +37,8 @@ export default async function ChefsPage() {
         </div>
 
         <ChefManager
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           stations={stations ?? []}
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          initialChefs={(chefs ?? []) as any}
+          initialChefs={(chefs ?? []) as Chef[]}
         />
       </div>
     </main>
