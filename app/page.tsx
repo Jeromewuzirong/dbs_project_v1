@@ -62,13 +62,21 @@ export default function Home() {
         </Link>
       </div>
 
-      <button
-        onClick={handleReset}
-        disabled={resetting}
-        className="mt-10 text-sm text-gray-600 hover:text-gray-400 disabled:opacity-40 transition-colors"
-      >
-        {resetting ? 'Resetting…' : 'Reset Kitchen'}
-      </button>
+      <div className="mt-10 flex items-center gap-6">
+        <Link
+          href="/chefs"
+          className="text-sm text-gray-600 hover:text-gray-400 transition-colors"
+        >
+          Manage Chefs
+        </Link>
+        <button
+          onClick={handleReset}
+          disabled={resetting}
+          className="text-sm text-gray-600 hover:text-gray-400 disabled:opacity-40 transition-colors"
+        >
+          {resetting ? 'Resetting…' : 'Reset Kitchen'}
+        </button>
+      </div>
     </div>
   );
 }
