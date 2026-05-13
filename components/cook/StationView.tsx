@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -51,16 +51,6 @@ export default function StationView({ stations }: Props) {
   const [steps,       setSteps]       = useState<StepWithContext[]>([]);
   const [loading,     setLoading]     = useState(false);
   const [chefOptions, setChefOptions] = useState<ChefOption[]>([]);
-  const [autoMode,    setAutoMode]    = useState(false);
-
-  // Refs for use inside intervals/async IIFEs without stale closures
-  const stepsRef         = useRef<StepWithContext[]>([]);
-  const autoScheduledRef = useRef<Set<string>>(new Set());
-
-  useEffect(() => { stepsRef.current = steps; }, [steps]);
-
-  // Turn off auto mode whenever the chef or station changes
-  useEffect(() => { setAutoMode(false); }, [chefId, stationId]);
 
   const fetchSteps = useCallback(async (sid: string) => {
     const { data, error } = await supabase
@@ -116,8 +106,7 @@ export default function StationView({ stations }: Props) {
             seen.set(c.id, { id: c.id, name: c.name });
           }
         }
-        const filtered = [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
-        setChefOptions(filtered);
+        setChefOptions([...seen.values()].sort((a, b) => a.name.localeCompare(b.name)));
       })
       .catch(() => {});
   }, [stationId]);
@@ -141,48 +130,7 @@ export default function StationView({ stations }: Props) {
     return () => { supabase.removeChannel(channel); };
   }, [stationId, supabase, fetchSteps]);
 
-  // Auto mode: poll every 2s, pick up fired/in_progress steps for this chef
-  useEffect(() => {
-    if (!autoMode || !chefId || !stationId) return;
-
-    const tick = () => {
-      const eligible = stepsRef.current.filter(s => {
-        if (autoScheduledRef.current.has(s.id)) return false;
-        if (s.status !== 'fired' && s.status !== 'in_progress') return false;
-        return s.assigned_chef_id === chefId || s.assigned_chef_id === null;
-      });
-
-      for (const step of eligible) {
-        autoScheduledRef.current.add(step.id);
-        const cookMs = step.estimated_duration * 100; // 10x speed
-
-        (async () => {
-          try {
-            if (step.status !== 'in_progress') {
-              const res = await fetch(`/api/steps/${step.id}/start`, { method: 'POST' });
-              // 409 = already started by someone else — still continue to complete
-              if (!res.ok && res.status !== 409) return;
-            }
-            await new Promise<void>(resolve => setTimeout(resolve, cookMs));
-            await fetch(`/api/steps/${step.id}/complete`, { method: 'POST' });
-          } catch {
-            // swallow — Realtime will reconcile state
-          } finally {
-            autoScheduledRef.current.delete(step.id);
-          }
-        })();
-      }
-    };
-
-    const intervalId = setInterval(tick, 2000);
-    return () => {
-      clearInterval(intervalId);
-      autoScheduledRef.current.clear();
-    };
-  }, [autoMode, chefId, stationId]);
-
   function handleStationChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    // Clear chef when switching station — chef list will change
     router.push(`?station=${e.target.value}`);
   }
 
@@ -206,35 +154,9 @@ export default function StationView({ stations }: Props) {
             ← Back
           </Link>
           <h1 className="text-lg font-bold tracking-wide text-white">Kitchen Orchestrator</h1>
-          {autoMode && (
-            <span className="px-2 py-0.5 rounded bg-blue-600 text-white text-xs font-black uppercase tracking-widest animate-pulse">
-              AUTO
-            </span>
-          )}
         </div>
 
         <div className="flex items-center gap-3">
-
-          {/* Auto Mode toggle */}
-          <label className="flex items-center gap-2 cursor-pointer select-none">
-            <span className="text-sm text-gray-400 font-medium">Auto</span>
-            <button
-              role="switch"
-              aria-checked={autoMode}
-              disabled={!chefId}
-              onClick={() => setAutoMode(v => !v)}
-              title={chefId ? 'Toggle auto mode' : 'Select a chef to enable auto mode'}
-              className={`relative w-11 h-6 rounded-full transition-colors
-                focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-40 disabled:cursor-not-allowed
-                ${autoMode ? 'bg-blue-600' : 'bg-gray-600'}`}
-            >
-              <span
-                className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform
-                  ${autoMode ? 'translate-x-5' : 'translate-x-0'}`}
-              />
-            </button>
-          </label>
-
           {/* Chef selector */}
           <select
             value={chefId ?? ''}
