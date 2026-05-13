@@ -38,7 +38,7 @@ export default async function ChefsPage() {
 
         <ChefManager
           stations={stations ?? []}
-          initialChefs={(chefs ?? []) as Chef[]}
+          initialChefs={(chefs ?? []) as unknown as Chef[]}
         />
       </div>
     </main>
