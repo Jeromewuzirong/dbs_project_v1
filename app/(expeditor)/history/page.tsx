@@ -3,12 +3,14 @@ import { createClient } from '@/lib/supabase/server';
 import type { DelayStatus } from '@/lib/types';
 
 const HISTORY_SELECT = `
-  id, table_number, target_serve_time, delay_status, created_at,
+  id, table_number, target_serve_time, created_at,
   order_items (
     id,
     order_steps ( completed_at )
   )
 `;
+
+const SOFT_DELAY_TOLERANCE_MS = 60 * 1000;
 
 interface CompletedOrder {
   id: string;
@@ -72,11 +74,18 @@ export default async function HistoryPage() {
       ? Math.round((new Date(completedAt).getTime() - new Date(row.created_at).getTime()) / 1000)
       : null;
 
+    let delay_status: DelayStatus = 'on_track';
+    if (completedAt) {
+      const overByMs = new Date(completedAt).getTime() - new Date(row.target_serve_time).getTime();
+      if (overByMs > SOFT_DELAY_TOLERANCE_MS) delay_status = 'hard_delay';
+      else if (overByMs > 0)                  delay_status = 'soft_delay';
+    }
+
     return {
       id:                row.id,
       table_number:      row.table_number,
       target_serve_time: row.target_serve_time,
-      delay_status:      row.delay_status,
+      delay_status,
       created_at:        row.created_at,
       dish_count:        (row.order_items ?? []).length,
       completed_at:      completedAt,
