@@ -75,6 +75,24 @@ export default function DashboardView({ initialOrders, stations }: Props) {
     return () => { supabase.removeChannel(channel); };
   }, [supabase, refetch]);
 
+  // Background delay-status refresh: check every 30s for orders whose
+  // target_serve_time has passed but still have incomplete steps.
+  // Reads from displayRef to avoid stale-closure issues; Supabase Realtime
+  // picks up any resulting DB write and triggers refetch automatically.
+  useEffect(() => {
+    const tick = () => {
+      const now = new Date();
+      displayRef.current
+        .filter(o => !o.completing && new Date(o.target_serve_time) < now)
+        .forEach(o => {
+          fetch(`/api/orders/${o.id}/delay-status`, { method: 'PATCH' });
+        });
+    };
+
+    const intervalId = setInterval(tick, 30_000);
+    return () => clearInterval(intervalId);
+  }, []); // intentionally no deps — reads live state via displayRef
+
   const activeOrders  = displayOrders.filter(o => !o.completing);
   const stationSummaries = deriveStationSummaries(stations, activeOrders);
   const activeCount  = activeOrders.filter(o => o.status === 'active').length;
