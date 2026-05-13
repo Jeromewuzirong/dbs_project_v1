@@ -9,8 +9,10 @@ export async function GET() {
     .select(CHEF_SELECT)
     .order('name');
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data);
+  console.log('[GET /api/chefs] rows:', data?.length ?? 'null', '| error:', error?.message ?? 'none', '| code:', error?.code ?? '-');
+
+  if (error) return NextResponse.json({ error: error.message, code: error.code }, { status: 500 });
+  return NextResponse.json(data ?? []);
 }
 
 export async function POST(request: Request) {
