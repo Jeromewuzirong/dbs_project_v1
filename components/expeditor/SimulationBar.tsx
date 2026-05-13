@@ -65,12 +65,21 @@ export default function SimulationBar() {
   ) => {
     // Simulate the cook noticing the fired ticket (0–3 s).
     setTimeout(async () => {
-      if (!runningRef.current) return;
-      const startRes = await fetch(`/api/steps/${id}/start`, { method: 'POST' });
-      console.log(`[sim] start  step ${id} → ${startRes.status}`);
-      // 409 means the step was already started by someone else — that's fine.
-      if (!startRes.ok && startRes.status !== 409) {
-        scheduledRef.current.delete(id); // release so the next poll can retry
+      if (!runningRef.current) {
+        scheduledRef.current.delete(id);
+        return;
+      }
+      try {
+        const startRes = await fetch(`/api/steps/${id}/start`, { method: 'POST' });
+        console.log(`[sim] start  step ${id} → ${startRes.status}`);
+        // 409 means the step was already started by someone else — that's fine.
+        if (!startRes.ok && startRes.status !== 409) {
+          scheduledRef.current.delete(id);
+          return;
+        }
+      } catch (err) {
+        console.warn(`[sim] start  step ${id} fetch error`, err);
+        scheduledRef.current.delete(id);
         return;
       }
 
@@ -79,12 +88,19 @@ export default function SimulationBar() {
       console.log(`[sim] scheduled completion for step ${id} in ${(cookMs / 1000).toFixed(1)}s`);
 
       setTimeout(async () => {
-        if (!runningRef.current) return;
-        console.log(`[sim] complete step ${id} — calling POST /api/steps/${id}/complete`);
-        const completeRes = await fetch(`/api/steps/${id}/complete`, { method: 'POST' });
-        console.log(`[sim] complete step ${id} → ${completeRes.status}`);
-        // 409/404 = already completed or not found — silently ignored.
-        scheduledRef.current.delete(id);
+        if (!runningRef.current) {
+          scheduledRef.current.delete(id);
+          return;
+        }
+        console.log(`[sim] complete step ${id}`);
+        try {
+          const completeRes = await fetch(`/api/steps/${id}/complete`, { method: 'POST' });
+          console.log(`[sim] complete step ${id} → ${completeRes.status}`);
+        } catch (err) {
+          console.warn(`[sim] complete step ${id} fetch error`, err);
+        } finally {
+          scheduledRef.current.delete(id);
+        }
       }, cookMs);
     }, Math.random() * 3000);
   }, []);
@@ -102,7 +118,7 @@ export default function SimulationBar() {
 
     const { data: allActive } = await supabase
       .from('order_steps')
-      .select('id, step_number, estimated_duration, station_id, order_item_id, status, order_items!inner(order_id)')
+      .select('id, step_number, estimated_duration, station_id, order_item_id, status, started_at, order_items!inner(order_id)')
       .in('status', ['pending', 'fired', 'in_progress'])
       .order('step_number', { ascending: true });
 
@@ -113,18 +129,48 @@ export default function SimulationBar() {
     // Station slots occupied within an order.
     const busyStation = new Set<string>(); // `${order_id}:${station_id}`
 
+    let reAdopted = 0;
     for (const s of active) {
       if (s.status !== 'in_progress') continue;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const orderId = (s.order_items as any)?.order_id;
       busyDish.add(s.order_item_id);
       if (orderId) busyStation.add(`${orderId}:${s.station_id}`);
+
+      // Re-adopt orphaned in_progress steps: server says in_progress but we have
+      // no completion timeout running (scheduledRef lost the ID — e.g., Stop Kitchen
+      // was pressed mid-cook, or a fetch threw). Without re-adoption these steps
+      // block their dish forever via busyDish.
+      if (!scheduledRef.current.has(s.id)) {
+        const startedAtMs = s.started_at ? new Date(s.started_at).getTime() : Date.now();
+        const totalCookMs = s.estimated_duration * 100;
+        const remainingMs = Math.max(0, totalCookMs - (Date.now() - startedAtMs));
+        console.log(`[sim] re-adopting orphaned step ${s.id}, completing in ${(remainingMs / 1000).toFixed(1)}s`);
+        scheduledRef.current.add(s.id);
+        reAdopted++;
+        setTimeout(async () => {
+          if (!runningRef.current) {
+            scheduledRef.current.delete(s.id);
+            return;
+          }
+          try {
+            const res = await fetch(`/api/steps/${s.id}/complete`, { method: 'POST' });
+            console.log(`[sim] re-adopted complete step ${s.id} → ${res.status}`);
+          } catch (err) {
+            console.warn(`[sim] re-adopted complete step ${s.id} fetch error`, err);
+          } finally {
+            scheduledRef.current.delete(s.id);
+          }
+        }, remainingMs);
+      }
     }
 
     // Dishes handled in this cycle (either in_progress already, or we just scheduled them).
     const handledDish = new Set<string>();
 
     let newlyScheduled = 0;
+    const skips = { busyDish: 0, handledDish: 0, noOrderId: 0, alreadyScheduled: 0, busyStation: 0 };
+
     for (const step of active) {
       if (step.status === 'in_progress') continue; // already handled above
 
@@ -134,18 +180,18 @@ export default function SimulationBar() {
       // Dish sequential constraint: if any earlier (or same) step for this dish is
       // in_progress or already in flight, skip all subsequent steps for this dish.
       // Mark the dish handled first so later steps in this loop are always blocked.
-      if (busyDish.has(step.order_item_id))    { handledDish.add(step.order_item_id); continue; }
-      if (handledDish.has(step.order_item_id)) continue;
+      if (busyDish.has(step.order_item_id))    { skips.busyDish++;    handledDish.add(step.order_item_id); continue; }
+      if (handledDish.has(step.order_item_id)) { skips.handledDish++; continue; }
 
       handledDish.add(step.order_item_id);
 
-      if (!orderId) continue; // can't determine order — skip scheduling but dish is marked handled
+      if (!orderId) { skips.noOrderId++; continue; }
 
-      if (scheduledRef.current.has(step.id)) continue; // already in the cook pipeline
+      if (scheduledRef.current.has(step.id)) { skips.alreadyScheduled++; continue; }
 
       // Station constraint: cross-dish, same station, same order.
       const stationKey = `${orderId}:${step.station_id}`;
-      if (busyStation.has(stationKey)) continue;
+      if (busyStation.has(stationKey)) { skips.busyStation++; continue; }
 
       busyStation.add(stationKey);
       scheduledRef.current.add(step.id);
@@ -155,9 +201,8 @@ export default function SimulationBar() {
 
     const inProgressCount = active.filter(s => s.status === 'in_progress').length;
     console.log(
-      `[sim] poll — active: ${active.length}`,
-      `in_progress: ${inProgressCount}`,
-      `newly scheduled: ${newlyScheduled}`,
+      `[sim] poll — active:${active.length} in_progress:${inProgressCount} sched_set:${scheduledRef.current.size} new:${newlyScheduled} re-adopted:${reAdopted}`,
+      `| skips: busy_dish:${skips.busyDish} handled:${skips.handledDish} already_sched:${skips.alreadyScheduled} busy_station:${skips.busyStation}`,
     );
   }, [supabase, scheduleStep]);
 
