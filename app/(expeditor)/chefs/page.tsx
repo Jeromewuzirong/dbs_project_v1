@@ -1,21 +1,14 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import ChefManager from '@/components/expeditor/ChefManager';
-import type { Chef } from '@/components/expeditor/ChefManager';
 
 export default async function ChefsPage() {
   const supabase = await createClient();
 
-  const [{ data: stations }, { data: chefs }] = await Promise.all([
-    supabase
-      .from('stations')
-      .select('id, name, display_order')
-      .order('display_order'),
-    supabase
-      .from('chefs')
-      .select('id, name, created_at, chef_stations(station_id, stations(id, name, display_order))')
-      .order('name'),
-  ]);
+  const { data: stations } = await supabase
+    .from('stations')
+    .select('id, name, display_order')
+    .order('display_order');
 
   return (
     <main className="min-h-screen bg-gray-950 text-white px-4 py-10">
@@ -36,10 +29,7 @@ export default async function ChefsPage() {
           <h1 className="text-2xl font-black tracking-tight">Manage Chefs</h1>
         </div>
 
-        <ChefManager
-          stations={stations ?? []}
-          initialChefs={(chefs ?? []) as unknown as Chef[]}
-        />
+        <ChefManager stations={stations ?? []} />
       </div>
     </main>
   );

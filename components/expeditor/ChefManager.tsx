@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 interface Station {
   id: string;
@@ -20,7 +20,6 @@ export interface Chef {
 
 interface Props {
   stations: Station[];
-  initialChefs: Chef[];
 }
 
 function chefStationNames(chef: Chef, stations: Station[]): string[] {
@@ -32,13 +31,20 @@ function chefStationNames(chef: Chef, stations: Station[]): string[] {
     .map(s => s.name);
 }
 
-export default function ChefManager({ stations, initialChefs }: Props) {
-  const [chefs, setChefs]             = useState<Chef[]>(initialChefs);
+export default function ChefManager({ stations }: Props) {
+  const [chefs, setChefs]             = useState<Chef[]>([]);
   const [name, setName]               = useState('');
   const [selectedStations, setSelectedStations] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting]   = useState(false);
   const [removingId, setRemovingId]   = useState<string | null>(null);
   const [error, setError]             = useState('');
+
+  useEffect(() => {
+    fetch('/api/chefs')
+      .then(r => r.json())
+      .then((data: Chef[]) => setChefs([...data].sort((a, b) => a.name.localeCompare(b.name))))
+      .catch(() => {});
+  }, []);
 
   const sortedStations = [...stations].sort((a, b) => a.display_order - b.display_order);
 
