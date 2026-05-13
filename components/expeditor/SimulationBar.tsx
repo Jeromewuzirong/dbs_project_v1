@@ -210,30 +210,32 @@ export default function SimulationBar() {
   const createOrder = useCallback(async (items: CatalogItem[]) => {
     if (!runningRef.current) return;
 
-    const { count: activeCount } = await supabase
+    const { data: activeOrders } = await supabase
       .from('orders')
-      .select('id', { count: 'exact', head: true })
+      .select('table_number')
       .in('status', ['pending', 'active']);
-    if ((activeCount ?? 0) >= 6) return;
+
+    if ((activeOrders?.length ?? 0) >= 6) return;
+
+    const occupiedTables = new Set((activeOrders ?? []).map(o => o.table_number));
+    const availableTables = Array.from({ length: 20 }, (_, i) => i + 1).filter(n => !occupiedTables.has(n));
+    if (availableTables.length === 0) return;
+
+    const tableNumber = availableTables[Math.floor(Math.random() * availableTables.length)];
 
     const shuffled = [...items].sort(() => Math.random() - 0.5);
     const count    = 1 + Math.floor(Math.random() * 3);
     const picked   = shuffled.slice(0, count);
 
-    const maxDuration     = Math.max(...picked.map(m => m.totalDuration));
-    const targetServeTime = new Date(Date.now() + (maxDuration + 10) * 1000).toISOString();
-    const tableNumber     = 1 + Math.floor(Math.random() * 20);
-
     await fetch('/api/orders', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({
-        table_number:      tableNumber,
-        target_serve_time: targetServeTime,
-        items:             picked.map(m => m.id),
+        table_number: tableNumber,
+        items:        picked.map(m => m.id),
       }),
     }).catch(() => { /* swallow — don't crash the generator loop */ });
-  }, []);
+  }, [supabase]);
 
   function handleStart() {
     console.log('sim: start called');
