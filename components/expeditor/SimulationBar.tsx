@@ -29,11 +29,13 @@ export default function SimulationBar() {
   const [loadingCatalog, setLoadingCatalog] = useState(false);
   const [existingOrderCount, setExistingOrderCount] = useState<number | null>(null);
 
-  const runningRef       = useRef(false);
-  const dispatchTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const presetCfgRef     = useRef<typeof PRESETS[PresetKey]>(PRESETS.steady);
-  const orderTimer       = useRef<ReturnType<typeof setInterval> | null>(null);
+  // runningRef gates createOrder so it stops immediately when Auto is toggled off,
+  // even mid-interval. presetCfgRef is read inside the interval callback.
+  const runningRef   = useRef(false);
+  const presetCfgRef = useRef<typeof PRESETS[PresetKey]>(PRESETS.steady);
+  const orderTimer   = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // ── Catalog ──────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!open || catalog !== null || loadingCatalog) return;
 
@@ -55,28 +57,7 @@ export default function SimulationBar() {
     }).finally(() => setLoadingCatalog(false));
   }, [open, catalog, loadingCatalog, supabase]);
 
-  // Each tick POSTs to /api/dispatch which runs the full assignment + completion
-  // logic server-side, so the dispatcher keeps working even when the browser
-  // navigates away from this page.
-  const startDispatcher = useCallback(() => {
-    if (dispatchTimerRef.current) return; // guard: already running
-    const tick = () =>
-      fetch('/api/dispatch', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ delayChance: presetCfgRef.current.delayChance }),
-      }).catch(() => {});
-    tick();
-    dispatchTimerRef.current = setInterval(tick, 2000);
-  }, []);
-
-  const stopDispatcher = useCallback(() => {
-    if (dispatchTimerRef.current) {
-      clearInterval(dispatchTimerRef.current);
-      dispatchTimerRef.current = null;
-    }
-  }, []);
-
+  // ── Order generation ─────────────────────────────────────────────────────
   const createOrder = useCallback(async (items: CatalogItem[]) => {
     if (!runningRef.current) return;
 
@@ -102,10 +83,14 @@ export default function SimulationBar() {
     }).catch(() => {});
   }, [supabase]);
 
+  // ── Handlers ─────────────────────────────────────────────────────────────
+  // Dispatch is now driven by DispatchWorker in the root layout, which
+  // reads kitchen_auto_mode from localStorage and calls POST /api/dispatch
+  // every 2 s regardless of which page is open.
+
   function handleAutoToggle() {
     if (autoMode) {
       runningRef.current = false;
-      stopDispatcher();
       setAutoMode(false);
       setOrdersRunning(false);
       if (orderTimer.current) clearInterval(orderTimer.current);
@@ -114,7 +99,6 @@ export default function SimulationBar() {
     } else {
       runningRef.current = true;
       setAutoMode(true);
-      startDispatcher();
       localStorage.setItem(AUTO_MODE_KEY, 'true');
     }
   }
@@ -129,10 +113,6 @@ export default function SimulationBar() {
     const intervalMs = (60 / presetCfgRef.current.ordersPerMin) * 1000;
     createOrder(items);
     orderTimer.current = setInterval(() => createOrder(items), intervalMs);
-
-    if (!dispatchTimerRef.current) {
-      startDispatcher();
-    }
   }
 
   async function handleStart() {
@@ -170,7 +150,6 @@ export default function SimulationBar() {
 
   function handleStopKitchen() {
     runningRef.current = false;
-    stopDispatcher();
     setOrdersRunning(false);
     setAutoMode(false);
     if (orderTimer.current) clearInterval(orderTimer.current);
@@ -178,25 +157,24 @@ export default function SimulationBar() {
     localStorage.setItem(AUTO_MODE_KEY, 'false');
   }
 
+  // ── Lifecycle ─────────────────────────────────────────────────────────────
   useEffect(() => {
     return () => {
       runningRef.current = false;
-      if (dispatchTimerRef.current) clearInterval(dispatchTimerRef.current);
       if (orderTimer.current) clearInterval(orderTimer.current);
     };
-  }, []); // refs are stable; runs only on unmount
+  }, []);
 
-  // Restore auto mode after page navigation / refresh.
-  // Only restarts the dispatcher (processes in-flight orders);
-  // order generation does not auto-resume.
+  // Sync UI with persisted auto-mode on mount (dispatcher itself is handled
+  // by DispatchWorker which is always mounted in the root layout).
   useEffect(() => {
     if (localStorage.getItem(AUTO_MODE_KEY) === 'true') {
       runningRef.current = true;
       setAutoMode(true);
-      startDispatcher();
     }
-  }, [startDispatcher]);
+  }, []);
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="border-b border-gray-800 bg-gray-950 shrink-0">
 
@@ -214,7 +192,7 @@ export default function SimulationBar() {
             <span className="text-blue-400 font-semibold animate-pulse">· AUTO</span>
           )}
           {autoMode && ordersRunning && (
-            <span className={`font-semibold text-green-400`}>
+            <span className="font-semibold text-green-400">
               · Running — {PRESETS[preset].label}
             </span>
           )}
@@ -279,7 +257,6 @@ export default function SimulationBar() {
               <div className="flex-1" />
 
               <div className="flex gap-2 items-center flex-wrap">
-                {/* Stop orders (only when generating) */}
                 {ordersRunning && (
                   <button
                     onClick={handleStopOrders}
@@ -289,7 +266,6 @@ export default function SimulationBar() {
                   </button>
                 )}
 
-                {/* Stop kitchen (stops dispatcher + orders) */}
                 {autoMode && (
                   <button
                     onClick={handleStopKitchen}
@@ -299,7 +275,6 @@ export default function SimulationBar() {
                   </button>
                 )}
 
-                {/* Confirmation dialog */}
                 {!ordersRunning && existingOrderCount !== null && (
                   <div className="flex items-center gap-3 flex-wrap">
                     <span className="text-xs text-amber-400 font-medium">
@@ -320,7 +295,6 @@ export default function SimulationBar() {
                   </div>
                 )}
 
-                {/* Start simulation button — available even when auto mode is on */}
                 {!ordersRunning && existingOrderCount === null && (
                   <button
                     onClick={handleStart}

@@ -13,6 +13,8 @@ import { adminClient } from '@/lib/supabase/admin';
 
 export async function POST(request: Request) {
   const origin = new URL(request.url).origin;
+  // Body is unused — DispatchWorker calls with no body.
+  // Accepting POST (not GET) so browsers don't pre-fetch it.
 
   // ── 1. Complete elapsed in_progress steps ────────────────────────────────
   const { data: inProgress } = await adminClient
