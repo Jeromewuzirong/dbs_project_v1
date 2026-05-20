@@ -16,13 +16,13 @@ export default async function ChefsPage() {
         <div className="flex items-center gap-4 mb-8">
           <Link
             href="/"
-            className="text-gray-500 hover:text-white transition-colors text-sm font-medium"
+            className="text-gray-500 hover:text-white transition-colors text-sm font-medium cursor-pointer"
           >
             ← Home
           </Link>
           <Link
             href="/dashboard"
-            className="text-gray-500 hover:text-white transition-colors text-sm font-medium"
+            className="text-gray-500 hover:text-white transition-colors text-sm font-medium cursor-pointer"
           >
             Dashboard
           </Link>

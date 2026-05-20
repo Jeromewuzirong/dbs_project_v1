@@ -167,13 +167,13 @@ export default function DashboardView({ initialOrders, stations }: Props) {
         <SimulationBar />
         <header className="px-6 py-4 border-b border-gray-800 bg-gray-900 shrink-0 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link href="/" className="text-gray-500 hover:text-white transition-colors text-sm font-medium">
+            <Link href="/" className="text-gray-500 hover:text-white transition-colors text-sm font-medium cursor-pointer">
               ← Back
             </Link>
-            <Link href="/history" className="text-gray-500 hover:text-white transition-colors text-sm font-medium">
+            <Link href="/history" className="text-gray-500 hover:text-white transition-colors text-sm font-medium cursor-pointer">
               History
             </Link>
-            <Link href="/chefs" className="text-gray-500 hover:text-white transition-colors text-sm font-medium">
+            <Link href="/chefs" className="text-gray-500 hover:text-white transition-colors text-sm font-medium cursor-pointer">
               Manage Chefs
             </Link>
             <h1 className="text-lg font-bold tracking-wide text-white">Expeditor</h1>

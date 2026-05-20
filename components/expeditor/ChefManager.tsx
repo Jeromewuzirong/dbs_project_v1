@@ -125,7 +125,7 @@ export default function ChefManager({ stations }: Props) {
                   <button
                     onClick={() => handleRemove(chef.id)}
                     disabled={removingId === chef.id}
-                    className="ml-4 text-xs text-gray-600 hover:text-red-400 disabled:opacity-40 transition-colors font-medium shrink-0"
+                    className="ml-4 text-xs text-gray-600 hover:text-red-400 disabled:opacity-40 transition-colors font-medium shrink-0 cursor-pointer"
                   >
                     {removingId === chef.id ? 'Removing…' : 'Remove'}
                   </button>
@@ -172,7 +172,7 @@ export default function ChefManager({ stations }: Props) {
             type="submit"
             disabled={submitting || !name.trim() || selectedStations.size === 0}
             className="rounded-lg bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-40
-                       text-white font-bold px-6 py-2 transition-colors"
+                       text-white font-bold px-6 py-2 transition-colors cursor-pointer"
           >
             {submitting ? 'Adding…' : 'Add Chef'}
           </button>

@@ -63,7 +63,7 @@ function RoleSelector({
         <button
           onClick={onCustomer}
           className="flex-1 flex flex-col items-center gap-2 rounded-2xl bg-green-700 hover:bg-green-600 active:bg-green-800
-                     text-white font-bold text-base py-8 px-6 transition-colors shadow-lg shadow-green-900/40"
+                     text-white font-bold text-base py-8 px-6 transition-colors shadow-lg shadow-green-900/40 cursor-pointer"
         >
           <span className="text-3xl">🧾</span>
           I&apos;m a Customer
@@ -73,7 +73,7 @@ function RoleSelector({
         <button
           onClick={onChef}
           className="flex-1 flex flex-col items-center gap-2 rounded-2xl bg-amber-600 hover:bg-amber-500 active:bg-amber-700
-                     text-black font-bold text-base py-8 px-6 transition-colors shadow-lg shadow-amber-900/40"
+                     text-black font-bold text-base py-8 px-6 transition-colors shadow-lg shadow-amber-900/40 cursor-pointer"
         >
           <span className="text-3xl">🍳</span>
           I&apos;m a Chef
@@ -83,7 +83,7 @@ function RoleSelector({
         <button
           onClick={onAdmin}
           className="flex-1 flex flex-col items-center gap-2 rounded-2xl bg-blue-700 hover:bg-blue-600 active:bg-blue-800
-                     text-white font-bold text-base py-8 px-6 transition-colors shadow-lg shadow-blue-900/40"
+                     text-white font-bold text-base py-8 px-6 transition-colors shadow-lg shadow-blue-900/40 cursor-pointer"
         >
           <span className="text-3xl">📋</span>
           I&apos;m an Admin
@@ -161,7 +161,7 @@ function ChefPicker({
             <button
               onClick={handleConfirm}
               className="w-full py-4 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600
-                         text-black font-black text-base transition-colors mb-3"
+                         text-black font-black text-base transition-colors mb-3 cursor-pointer"
             >
               Continue →
             </button>
@@ -170,7 +170,7 @@ function ChefPicker({
 
         <button
           onClick={onBack}
-          className="w-full py-3 rounded-xl text-gray-500 hover:text-white text-sm font-medium transition-colors"
+          className="w-full py-3 rounded-xl text-gray-500 hover:text-white text-sm font-medium transition-colors cursor-pointer"
         >
           ← Back
         </button>
@@ -216,7 +216,7 @@ function Dashboard({
           <Link
             href="/order"
             className="flex-1 min-w-[200px] flex items-center justify-center gap-2 rounded-2xl bg-green-600 hover:bg-green-500 active:bg-green-700
-                       text-white font-bold text-lg py-6 px-6 transition-colors shadow-lg shadow-green-900/40"
+                       text-white font-bold text-lg py-6 px-6 transition-colors shadow-lg shadow-green-900/40 cursor-pointer"
           >
             <span className="text-2xl">🧾</span>
             Place Order
@@ -227,7 +227,7 @@ function Dashboard({
           <Link
             href="/orders"
             className="flex-1 min-w-[200px] flex items-center justify-center gap-2 rounded-2xl bg-green-800 hover:bg-green-700 active:bg-green-900
-                       text-white font-bold text-lg py-6 px-6 transition-colors shadow-lg shadow-green-900/30"
+                       text-white font-bold text-lg py-6 px-6 transition-colors shadow-lg shadow-green-900/30 cursor-pointer"
           >
             <span className="text-2xl">📦</span>
             My Orders
@@ -238,7 +238,7 @@ function Dashboard({
           <Link
             href="/dashboard"
             className="flex-1 min-w-[200px] flex items-center justify-center gap-2 rounded-2xl bg-blue-600 hover:bg-blue-500 active:bg-blue-700
-                       text-white font-bold text-lg py-6 px-6 transition-colors shadow-lg shadow-blue-900/40"
+                       text-white font-bold text-lg py-6 px-6 transition-colors shadow-lg shadow-blue-900/40 cursor-pointer"
           >
             <span className="text-2xl">📋</span>
             Expeditor Dashboard
@@ -249,7 +249,7 @@ function Dashboard({
           <Link
             href="/station"
             className="flex-1 min-w-[200px] flex items-center justify-center gap-2 rounded-2xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600
-                       text-black font-bold text-lg py-6 px-6 transition-colors shadow-lg shadow-amber-900/40"
+                       text-black font-bold text-lg py-6 px-6 transition-colors shadow-lg shadow-amber-900/40 cursor-pointer"
           >
             <span className="text-2xl">🍳</span>
             Cook Station
@@ -260,7 +260,7 @@ function Dashboard({
           <Link
             href="/tasks"
             className="flex-1 min-w-[200px] flex items-center justify-center gap-2 rounded-2xl bg-amber-700 hover:bg-amber-600 active:bg-amber-800
-                       text-white font-bold text-lg py-6 px-6 transition-colors shadow-lg shadow-amber-900/30"
+                       text-white font-bold text-lg py-6 px-6 transition-colors shadow-lg shadow-amber-900/30 cursor-pointer"
           >
             <span className="text-2xl">✓</span>
             My Tasks
@@ -271,7 +271,7 @@ function Dashboard({
           <Link
             href="/history"
             className="flex-1 min-w-[200px] flex items-center justify-center gap-2 rounded-2xl border border-gray-700 hover:border-gray-500 hover:bg-gray-900
-                       text-gray-400 hover:text-white font-bold text-lg py-6 px-6 transition-colors"
+                       text-gray-400 hover:text-white font-bold text-lg py-6 px-6 transition-colors cursor-pointer"
           >
             <span className="text-2xl">📜</span>
             History
@@ -281,7 +281,7 @@ function Dashboard({
 
       {isAdmin && (
         <div className="mt-10 flex items-center gap-6">
-          <Link href="/chefs" className="text-sm text-gray-600 hover:text-gray-400 transition-colors">
+          <Link href="/chefs" className="text-sm text-gray-600 hover:text-gray-400 transition-colors cursor-pointer">
             Manage Chefs
           </Link>
           <ResetButton />
@@ -290,7 +290,7 @@ function Dashboard({
 
       <button
         onClick={onSwitch}
-        className="mt-12 text-xs text-gray-700 hover:text-gray-500 transition-colors underline underline-offset-2"
+        className="mt-12 text-xs text-gray-700 hover:text-gray-500 transition-colors underline underline-offset-2 cursor-pointer"
       >
         Switch Role
       </button>
@@ -310,7 +310,7 @@ function ResetButton() {
     <button
       onClick={handleReset}
       disabled={busy}
-      className="text-sm text-gray-600 hover:text-gray-400 disabled:opacity-40 transition-colors"
+      className="text-sm text-gray-600 hover:text-gray-400 disabled:opacity-40 transition-colors cursor-pointer"
     >
       {busy ? 'Resetting…' : 'Reset Kitchen'}
     </button>

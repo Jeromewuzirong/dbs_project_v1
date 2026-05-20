@@ -75,7 +75,7 @@ export default async function HistoryPage() {
   return (
     <main className="min-h-screen bg-gray-950 text-white">
       <header className="px-6 py-4 border-b border-gray-800 bg-gray-900 shrink-0 flex items-center gap-4">
-        <Link href="/" className="text-gray-500 hover:text-white transition-colors text-sm font-medium">
+        <Link href="/" className="text-gray-500 hover:text-white transition-colors text-sm font-medium cursor-pointer">
           ← Back
         </Link>
         <h1 className="text-lg font-bold tracking-wide">Order History</h1>

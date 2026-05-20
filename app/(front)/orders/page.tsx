@@ -125,7 +125,7 @@ export default function MyOrdersPage() {
   if (tableNumber === null) {
     return (
       <main className="min-h-screen bg-gray-950 flex flex-col items-center justify-center px-6">
-        <Link href="/" className="absolute top-6 left-6 text-gray-600 hover:text-gray-400 text-sm transition-colors">
+        <Link href="/" className="absolute top-6 left-6 text-gray-600 hover:text-gray-400 text-sm transition-colors cursor-pointer">
           ← Home
         </Link>
 
@@ -148,7 +148,7 @@ export default function MyOrdersPage() {
             type="submit"
             disabled={!input || parseInt(input, 10) < 1 || parseInt(input, 10) > 20}
             className="px-6 py-3 rounded-xl bg-green-600 hover:bg-green-500 disabled:opacity-40
-                       text-white font-bold text-base transition-colors"
+                       text-white font-bold text-base transition-colors cursor-pointer"
           >
             Track →
           </button>
@@ -163,13 +163,13 @@ export default function MyOrdersPage() {
       <div className="max-w-2xl mx-auto">
 
         <div className="flex items-center gap-4 mb-8">
-          <Link href="/" className="text-gray-500 hover:text-white transition-colors text-sm font-medium">
+          <Link href="/" className="text-gray-500 hover:text-white transition-colors text-sm font-medium cursor-pointer">
             ← Home
           </Link>
           <h1 className="text-2xl font-black tracking-tight">Table {tableNumber}</h1>
           <button
             onClick={() => { setTableNumber(null); setInput(''); setOrders([]); }}
-            className="ml-auto text-xs text-gray-500 hover:text-white transition-colors border border-gray-700 hover:border-gray-500 px-3 py-1 rounded-lg"
+            className="ml-auto text-xs text-gray-500 hover:text-white transition-colors border border-gray-700 hover:border-gray-500 px-3 py-1 rounded-lg cursor-pointer"
           >
             Change table
           </button>

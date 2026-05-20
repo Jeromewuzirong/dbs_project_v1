@@ -18,7 +18,7 @@ export default async function OrderPage() {
         <div className="flex items-center gap-4 mb-8">
           <Link
             href="/"
-            className="text-gray-500 hover:text-white transition-colors text-sm font-medium"
+            className="text-gray-500 hover:text-white transition-colors text-sm font-medium cursor-pointer"
           >
             ← Home
           </Link>

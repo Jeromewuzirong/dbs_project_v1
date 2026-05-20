@@ -84,13 +84,13 @@ export default function OrderForm({ menuItems }: Props) {
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <button
             onClick={reset}
-            className="rounded-xl bg-green-600 hover:bg-green-500 active:bg-green-700 text-white font-bold py-3 px-6 transition-colors"
+            className="rounded-xl bg-green-600 hover:bg-green-500 active:bg-green-700 text-white font-bold py-3 px-6 transition-colors cursor-pointer"
           >
             Place another order
           </button>
           <Link
             href="/orders"
-            className="rounded-xl border border-gray-700 hover:border-gray-500 hover:bg-gray-900 text-gray-400 hover:text-white font-bold py-3 px-6 transition-colors text-center"
+            className="rounded-xl border border-gray-700 hover:border-gray-500 hover:bg-gray-900 text-gray-400 hover:text-white font-bold py-3 px-6 transition-colors text-center cursor-pointer"
           >
             View My Orders
           </Link>
@@ -139,7 +139,7 @@ export default function OrderForm({ menuItems }: Props) {
                     onClick={() => adjust(item.id, -1)}
                     disabled={qty === 0}
                     className="w-8 h-8 rounded-full bg-gray-700 hover:bg-gray-600 disabled:opacity-30 disabled:cursor-not-allowed
-                               text-white font-bold transition-colors flex items-center justify-center"
+                               text-white font-bold transition-colors flex items-center justify-center cursor-pointer"
                   >
                     −
                   </button>
@@ -150,7 +150,7 @@ export default function OrderForm({ menuItems }: Props) {
                     type="button"
                     onClick={() => adjust(item.id, 1)}
                     className="w-8 h-8 rounded-full bg-gray-700 hover:bg-gray-600 text-white font-bold transition-colors
-                               flex items-center justify-center"
+                               flex items-center justify-center cursor-pointer"
                   >
                     +
                   </button>
@@ -171,7 +171,7 @@ export default function OrderForm({ menuItems }: Props) {
         type="submit"
         disabled={status === 'submitting'}
         className="w-full rounded-xl bg-green-600 hover:bg-green-500 active:bg-green-700 disabled:opacity-40
-                   text-white font-bold text-lg py-4 transition-colors"
+                   text-white font-bold text-lg py-4 transition-colors cursor-pointer"
       >
         {status === 'submitting' ? 'Placing order…' : 'Place Order'}
       </button>

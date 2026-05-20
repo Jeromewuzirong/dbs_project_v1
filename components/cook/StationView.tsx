@@ -210,7 +210,7 @@ export default function StationView({ stations }: Props) {
       {/* Header */}
       <header className="flex items-center justify-between px-6 py-4 border-b border-gray-800 bg-gray-900 shrink-0">
         <div className="flex items-center gap-4">
-          <Link href="/" className="text-gray-500 hover:text-white transition-colors text-sm font-medium">
+          <Link href="/" className="text-gray-500 hover:text-white transition-colors text-sm font-medium cursor-pointer">
             ← Back
           </Link>
           <h1 className="text-lg font-bold tracking-wide text-white">Kitchen Orchestrator</h1>
@@ -221,7 +221,7 @@ export default function StationView({ stations }: Props) {
           <div className="flex items-center border border-gray-700 rounded-lg overflow-hidden text-sm">
             <button
               onClick={handleAllChefs}
-              className={`px-3 py-2 font-semibold transition-colors ${
+              className={`px-3 py-2 font-semibold transition-colors cursor-pointer ${
                 !chefId
                   ? 'bg-gray-700 text-white'
                   : 'bg-gray-800 text-gray-400 hover:text-white'

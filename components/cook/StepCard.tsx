@@ -97,7 +97,7 @@ export default function StepCard({ step, chefId, readonly = false, stationName, 
         <button
           disabled={busy}
           title="Signal a delay"
-          className="text-gray-700 hover:text-red-400 disabled:opacity-30 transition-colors p-1.5 text-xl leading-none"
+          className="text-gray-700 hover:text-red-400 disabled:opacity-30 transition-colors p-1.5 text-xl leading-none cursor-pointer"
           onClick={() => { /* TODO */ }}
         >
           ⚑
@@ -157,7 +157,7 @@ export default function StepCard({ step, chefId, readonly = false, stationName, 
               onClick={handleStart}
               disabled={busy}
               className="flex-1 py-4 rounded-xl bg-amber-400 hover:bg-amber-300 active:bg-amber-500
-                         text-black font-black text-base disabled:opacity-40 transition-colors tracking-wide"
+                         text-black font-black text-base disabled:opacity-40 transition-colors tracking-wide cursor-pointer"
             >
               {busy ? '…' : 'START'}
             </button>
@@ -166,7 +166,7 @@ export default function StepCard({ step, chefId, readonly = false, stationName, 
             onClick={handleComplete}
             disabled={busy}
             className="flex-1 py-4 rounded-xl bg-white hover:bg-gray-100 active:bg-gray-200
-                       text-black font-bold text-base disabled:opacity-40 transition-colors"
+                       text-black font-bold text-base disabled:opacity-40 transition-colors cursor-pointer"
           >
             {busy ? '…' : 'Done'}
           </button>

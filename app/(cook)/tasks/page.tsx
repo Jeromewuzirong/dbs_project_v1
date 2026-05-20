@@ -107,7 +107,7 @@ export default function MyTasksPage() {
       <main className="min-h-screen bg-gray-950 flex flex-col items-center justify-center px-6 text-center">
         <p className="text-gray-400 text-lg font-semibold mb-2">Not signed in as a chef</p>
         <p className="text-gray-600 text-sm mb-8">Go back and select the Chef role first.</p>
-        <Link href="/" className="text-sm text-blue-400 hover:text-blue-300 transition-colors">
+        <Link href="/" className="text-sm text-blue-400 hover:text-blue-300 transition-colors cursor-pointer">
           ← Home
         </Link>
       </main>
@@ -118,7 +118,7 @@ export default function MyTasksPage() {
     <div className="flex flex-col h-screen">
       <header className="flex items-center justify-between px-6 py-4 border-b border-gray-800 bg-gray-900 shrink-0">
         <div className="flex items-center gap-4">
-          <Link href="/" className="text-gray-500 hover:text-white transition-colors text-sm font-medium">
+          <Link href="/" className="text-gray-500 hover:text-white transition-colors text-sm font-medium cursor-pointer">
             ← Back
           </Link>
           <h1 className="text-lg font-bold tracking-wide text-white">My Tasks</h1>

@@ -184,7 +184,7 @@ export default function SimulationBar() {
         {/* Left: expand/collapse + status */}
         <button
           onClick={() => setOpen(o => !o)}
-          className="flex items-center gap-2 text-gray-500 hover:text-gray-300 transition-colors"
+          className="flex items-center gap-2 text-gray-500 hover:text-gray-300 transition-colors cursor-pointer"
         >
           <span className="tabular-nums">{open ? '▾' : '▸'}</span>
           <span className="font-semibold uppercase tracking-wider">Simulation</span>
@@ -210,7 +210,7 @@ export default function SimulationBar() {
               role="switch"
               aria-checked={autoMode}
               onClick={handleAutoToggle}
-              className={`relative w-9 h-5 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500
+              className={`relative w-9 h-5 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer
                 ${autoMode ? 'bg-blue-600' : 'bg-gray-600'}`}
             >
               <span
@@ -237,7 +237,7 @@ export default function SimulationBar() {
                   disabled={ordersRunning}
                   onClick={() => setPreset(key)}
                   className={[
-                    'px-3 py-1.5 rounded text-xs font-semibold transition-colors',
+                    'px-3 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer',
                     preset === key
                       ? 'bg-blue-600 text-white'
                       : 'bg-gray-800 text-gray-400 hover:text-white',
@@ -260,7 +260,7 @@ export default function SimulationBar() {
                 {ordersRunning && (
                   <button
                     onClick={handleStopOrders}
-                    className="px-4 py-1.5 rounded text-xs font-bold bg-amber-700 hover:bg-amber-600 text-white transition-colors"
+                    className="px-4 py-1.5 rounded text-xs font-bold bg-amber-700 hover:bg-amber-600 text-white transition-colors cursor-pointer"
                   >
                     ■ Stop Orders
                   </button>
@@ -269,7 +269,7 @@ export default function SimulationBar() {
                 {autoMode && (
                   <button
                     onClick={handleStopKitchen}
-                    className="px-4 py-1.5 rounded text-xs font-bold bg-red-700 hover:bg-red-600 text-white transition-colors"
+                    className="px-4 py-1.5 rounded text-xs font-bold bg-red-700 hover:bg-red-600 text-white transition-colors cursor-pointer"
                   >
                     ■ Stop Kitchen
                   </button>
@@ -282,13 +282,13 @@ export default function SimulationBar() {
                     </span>
                     <button
                       onClick={handleConfirmContinue}
-                      className="px-4 py-1.5 rounded text-xs font-bold bg-green-700 hover:bg-green-600 text-white transition-colors"
+                      className="px-4 py-1.5 rounded text-xs font-bold bg-green-700 hover:bg-green-600 text-white transition-colors cursor-pointer"
                     >
                       Continue
                     </button>
                     <button
                       onClick={handleConfirmReset}
-                      className="px-4 py-1.5 rounded text-xs font-bold bg-red-700 hover:bg-red-600 text-white transition-colors"
+                      className="px-4 py-1.5 rounded text-xs font-bold bg-red-700 hover:bg-red-600 text-white transition-colors cursor-pointer"
                     >
                       Reset Kitchen
                     </button>
@@ -298,7 +298,7 @@ export default function SimulationBar() {
                 {!ordersRunning && existingOrderCount === null && (
                   <button
                     onClick={handleStart}
-                    className="px-4 py-1.5 rounded text-xs font-bold bg-green-700 hover:bg-green-600 text-white transition-colors"
+                    className="px-4 py-1.5 rounded text-xs font-bold bg-green-700 hover:bg-green-600 text-white transition-colors cursor-pointer"
                   >
                     ▶ Start
                   </button>
