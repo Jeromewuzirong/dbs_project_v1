@@ -267,7 +267,7 @@ function Dashboard({
           </Link>
         )}
 
-        {isStaff && (
+        {isAdmin && (
           <Link
             href="/history"
             className="flex-1 min-w-[200px] flex items-center justify-center gap-2 rounded-2xl border border-gray-700 hover:border-gray-500 hover:bg-gray-900
@@ -278,7 +278,7 @@ function Dashboard({
           </Link>
         )}
 
-        {isStaff && (
+        {isAdmin && (
           <Link
             href="/leaderboard"
             className="flex-1 min-w-[200px] flex items-center justify-center gap-2 rounded-2xl border border-gray-700 hover:border-gray-500 hover:bg-gray-900
