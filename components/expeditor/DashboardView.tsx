@@ -8,9 +8,10 @@ import {
   deriveStationSummaries,
   ORDER_SELECT,
 } from './types';
-import type { ActiveOrder, RawStation } from './types';
+import type { ActiveOrder, ChefWithStations, RawStation } from './types';
 import OrderCard from './OrderCard';
 import StationSidebar from './StationSidebar';
+import ChefTracker from './ChefTracker';
 import SimulationBar from './SimulationBar';
 
 interface Props {
@@ -26,6 +27,14 @@ export default function DashboardView({ initialOrders, stations }: Props) {
   const [supabase] = useState(() => createClient());
   const [displayOrders, setDisplayOrders] = useState<DisplayOrder[]>(initialOrders);
   const displayRef = useRef<DisplayOrder[]>(initialOrders);
+  const [chefs, setChefs] = useState<ChefWithStations[]>([]);
+
+  useEffect(() => {
+    fetch('/api/chefs')
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setChefs(data); })
+      .catch(() => {});
+  }, []);
 
   const refetch = useCallback(async () => {
     const { data, error } = await supabase
@@ -136,8 +145,11 @@ export default function DashboardView({ initialOrders, stations }: Props) {
         </div>
       </div>
 
-      {/* Station sidebar */}
-      <StationSidebar stations={stationSummaries} />
+      {/* Right panel: station sidebar + chef tracker */}
+      <aside className="w-60 shrink-0 border-l border-gray-800 flex flex-col overflow-hidden">
+        <StationSidebar stations={stationSummaries} />
+        <ChefTracker chefs={chefs} activeOrders={activeOrders} />
+      </aside>
     </div>
   );
 }

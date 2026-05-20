@@ -2,7 +2,7 @@ import type { StationSummary } from './types';
 
 export default function StationSidebar({ stations }: { stations: StationSummary[] }) {
   return (
-    <aside className="w-60 shrink-0 border-l border-gray-800 flex flex-col p-4 gap-3 overflow-y-auto">
+    <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
       <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500">Stations</h2>
       {stations.map(s => (
         <div key={s.id} className="bg-gray-900 border border-gray-700 rounded-lg p-3">
@@ -23,6 +23,6 @@ export default function StationSidebar({ stations }: { stations: StationSummary[
           </div>
         </div>
       ))}
-    </aside>
+    </div>
   );
 }

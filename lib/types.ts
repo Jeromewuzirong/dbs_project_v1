@@ -58,5 +58,6 @@ export interface OrderStep {
   completed_at: string | null;
   flagged_at: string | null;
   actual_duration: number | null; // seconds
+  assigned_chef_id: string | null;
   created_at: string;
 }

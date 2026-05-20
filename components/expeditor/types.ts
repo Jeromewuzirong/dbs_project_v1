@@ -7,6 +7,17 @@ export interface StepPipData {
   status: StepStatus;
   station_id: string;
   station_name: string;
+  assigned_chef_id: string | null;
+  started_at: string | null;
+}
+
+export interface ChefWithStations {
+  id: string;
+  name: string;
+  chef_stations: {
+    station_id: string;
+    stations: { id: string; name: string; display_order: number } | null;
+  }[];
 }
 
 export interface DishRow {
@@ -42,7 +53,7 @@ export const ORDER_SELECT = `
     id,
     menu_items!inner ( name ),
     order_steps (
-      id, step_number, name, status, station_id,
+      id, step_number, name, status, station_id, assigned_chef_id, started_at,
       stations!inner ( name )
     )
   )
@@ -63,12 +74,14 @@ export function transformOrders(data: any[]): ActiveOrder[] {
         .slice()
         .sort((a: any, b: any) => a.step_number - b.step_number)
         .map((s: any) => ({
-          id:           s.id,
-          step_number:  s.step_number,
-          name:         s.name,
-          status:       s.status,
-          station_id:   s.station_id,
-          station_name: s.stations?.name ?? '',
+          id:               s.id,
+          step_number:      s.step_number,
+          name:             s.name,
+          status:           s.status,
+          station_id:       s.station_id,
+          station_name:     s.stations?.name ?? '',
+          assigned_chef_id: s.assigned_chef_id ?? null,
+          started_at:       s.started_at ?? null,
         })),
     })),
   }));
