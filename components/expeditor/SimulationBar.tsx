@@ -19,6 +19,7 @@ interface CatalogItem {
 
 interface SimChef {
   id: string;
+  name: string;
   stationIds: string[];
 }
 
@@ -62,9 +63,11 @@ export default function SimulationBar() {
 
   // One async loop per chef. Exits when runningRef is false or generation changes.
   const runChefLoop = useCallback(async (chef: SimChef, generation: number) => {
-    const tag = `[chef:${chef.id.slice(0, 6)}]`;
+    const tag = `[chef:${chef.name}]`;
+    console.log(`${tag} chef loop started (gen ${generation}, stations: [${chef.stationIds.join(', ')}])`);
 
     while (runningRef.current && generationRef.current === generation) {
+      console.log(`${tag} looking for step…`);
 
       // 1. Re-adopt any in_progress step already assigned to me
       const { data: mine } = await supabase
@@ -100,11 +103,13 @@ export default function SimulationBar() {
       if (!runningRef.current || generationRef.current !== generation) break;
 
       if (!candidates || candidates.length === 0) {
+        console.log(`${tag} no step available — sleeping 2s`);
         await sleep(2000);
         continue;
       }
 
       const step = candidates[0];
+      console.log(`${tag} found step ${step.id.slice(0, 8)} — claiming`);
 
       // 3. Claim it — may race another chef at the same station
       let claimed = false;
@@ -155,21 +160,31 @@ export default function SimulationBar() {
   // Increments generationRef so any existing loops from a prior call self-terminate.
   const startChefLoops = useCallback(async () => {
     const generation = ++generationRef.current;
+    console.log(`[sim] startChefLoops called (gen ${generation}, running=${runningRef.current})`);
 
-    const { data: rows } = await supabase
+    const { data: rows, error } = await supabase
       .from('chef_stations')
-      .select('chef_id, station_id');
+      .select('chef_id, station_id, chefs!inner(name)');
 
-    if (!runningRef.current || generationRef.current !== generation) return;
+    console.log(`[sim] chef_stations fetch: ${rows?.length ?? 0} rows, error=${error?.message ?? 'none'}`);
 
+    if (!runningRef.current || generationRef.current !== generation) {
+      console.log(`[sim] startChefLoops aborted (running=${runningRef.current}, gen now=${generationRef.current})`);
+      return;
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const chefMap: Record<string, SimChef> = {};
     for (const cs of rows ?? []) {
-      if (!chefMap[cs.chef_id]) chefMap[cs.chef_id] = { id: cs.chef_id, stationIds: [] };
+      if (!chefMap[cs.chef_id]) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        chefMap[cs.chef_id] = { id: cs.chef_id, name: (cs as any).chefs?.name ?? cs.chef_id.slice(0, 6), stationIds: [] };
+      }
       chefMap[cs.chef_id].stationIds.push(cs.station_id);
     }
 
     const chefs = Object.values(chefMap);
-    console.log(`[sim] starting ${chefs.length} chef loop(s) (gen ${generation})`);
+    console.log(`[sim] spawning ${chefs.length} chef loop(s):`, chefs.map(c => c.name));
     for (const chef of chefs) {
       runChefLoop(chef, generation); // fire and forget
     }
