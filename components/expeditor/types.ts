@@ -11,6 +11,12 @@ export interface StepPipData {
   started_at: string | null;
 }
 
+export interface ChefTask {
+  stepName: string;
+  dishName: string;
+  tableNumber: number;
+}
+
 export interface ChefWithStations {
   id: string;
   name: string;

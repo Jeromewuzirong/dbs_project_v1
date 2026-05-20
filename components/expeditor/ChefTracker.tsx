@@ -1,77 +1,28 @@
 'use client';
 
-import type { ActiveOrder, ChefWithStations } from './types';
-
-interface ChefStatus {
-  chef: ChefWithStations;
-  tableNumber: number | null;
-  dishName: string | null;
-  stepName: string | null;
-}
-
-function deriveChefStatuses(
-  chefs: ChefWithStations[],
-  activeOrders: ActiveOrder[],
-): ChefStatus[] {
-  return [...chefs]
-    .sort((a, b) => a.name.localeCompare(b.name))
-    .map(chef => {
-      let best: {
-        tableNumber: number;
-        dishName: string;
-        stepName: string;
-        started_at: string | null;
-      } | null = null;
-
-      for (const order of activeOrders) {
-        for (const dish of order.dishes) {
-          for (const step of dish.steps) {
-            if (step.assigned_chef_id !== chef.id || step.status !== 'in_progress') continue;
-            if (
-              !best ||
-              (step.started_at && (!best.started_at || step.started_at > best.started_at))
-            ) {
-              best = {
-                tableNumber: order.table_number,
-                dishName: dish.menu_item_name,
-                stepName: step.name,
-                started_at: step.started_at,
-              };
-            }
-          }
-        }
-      }
-
-      return {
-        chef,
-        tableNumber: best?.tableNumber ?? null,
-        dishName: best?.dishName ?? null,
-        stepName: best?.stepName ?? null,
-      };
-    });
-}
+import type { ChefTask, ChefWithStations } from './types';
 
 interface Props {
   chefs: ChefWithStations[];
-  activeOrders: ActiveOrder[];
+  chefTasks: Record<string, ChefTask>;
 }
 
-export default function ChefTracker({ chefs, activeOrders }: Props) {
-  const statuses = deriveChefStatuses(chefs, activeOrders);
+export default function ChefTracker({ chefs, chefTasks }: Props) {
+  const sorted = [...chefs].sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <div className="border-t border-gray-800 p-4 flex flex-col gap-3">
       <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500">Chefs</h2>
-      {statuses.length === 0 ? (
+      {sorted.length === 0 ? (
         <p className="text-xs text-gray-600">No chefs assigned.</p>
       ) : (
-        statuses.map(({ chef, tableNumber, dishName, stepName }) => {
+        sorted.map(chef => {
+          const task = chefTasks[chef.id] ?? null;
           const stationNames = chef.chef_stations
             .map(cs => cs.stations?.name)
             .filter(Boolean)
             .sort()
             .join(', ');
-          const idle = tableNumber === null;
 
           return (
             <div key={chef.id} className="bg-gray-900 border border-gray-700 rounded-lg p-3">
@@ -79,17 +30,19 @@ export default function ChefTracker({ chefs, activeOrders }: Props) {
                 <span className="text-sm font-semibold text-white truncate mr-2">
                   {chef.name}
                 </span>
-                <span className={`text-xs font-medium shrink-0 ${idle ? 'text-gray-600' : 'text-green-400'}`}>
-                  {idle ? 'Idle' : `T${tableNumber}`}
+                <span className={`text-xs font-medium shrink-0 ${task ? 'text-green-400' : 'text-gray-600'}`}>
+                  {task ? `T${task.tableNumber}` : 'Idle'}
                 </span>
               </div>
               {stationNames && (
                 <p className="text-xs text-gray-500 mb-1 truncate">{stationNames}</p>
               )}
-              {!idle && (
-                <p className="text-xs text-gray-300 leading-tight">
-                  Table {tableNumber} · {dishName} · {stepName}
+              {task ? (
+                <p className="text-xs text-white leading-tight">
+                  Table {task.tableNumber} · {task.dishName} · {task.stepName}
                 </p>
+              ) : (
+                <p className="text-xs text-gray-600">Idle</p>
               )}
             </div>
           );

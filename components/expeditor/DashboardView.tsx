@@ -8,7 +8,7 @@ import {
   deriveStationSummaries,
   ORDER_SELECT,
 } from './types';
-import type { ActiveOrder, ChefWithStations, RawStation } from './types';
+import type { ActiveOrder, ChefTask, ChefWithStations, RawStation } from './types';
 import OrderCard from './OrderCard';
 import StationSidebar from './StationSidebar';
 import ChefTracker from './ChefTracker';
@@ -28,6 +28,7 @@ export default function DashboardView({ initialOrders, stations }: Props) {
   const [displayOrders, setDisplayOrders] = useState<DisplayOrder[]>(initialOrders);
   const displayRef = useRef<DisplayOrder[]>(initialOrders);
   const [chefs, setChefs] = useState<ChefWithStations[]>([]);
+  const [chefTasks, setChefTasks] = useState<Record<string, ChefTask>>({});
 
   useEffect(() => {
     fetch('/api/chefs')
@@ -36,7 +37,46 @@ export default function DashboardView({ initialOrders, stations }: Props) {
       .catch(() => {});
   }, []);
 
+  const fetchChefTasks = useCallback(async () => {
+    const { data } = await supabase
+      .from('order_steps')
+      .select(`
+        id, name, started_at, assigned_chef_id,
+        order_items!inner (
+          menu_items!inner ( name ),
+          orders!inner ( table_number )
+        )
+      `)
+      .eq('status', 'in_progress')
+      .not('assigned_chef_id', 'is', null);
+
+    if (!data) return;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    type Row = { id: string; name: string; started_at: string | null; assigned_chef_id: string; order_items: any };
+    const best: Record<string, Row> = {};
+    for (const row of data as Row[]) {
+      const prev = best[row.assigned_chef_id];
+      if (!prev || (row.started_at && (!prev.started_at || row.started_at > prev.started_at))) {
+        best[row.assigned_chef_id] = row;
+      }
+    }
+
+    const tasks: Record<string, ChefTask> = {};
+    for (const [chefId, row] of Object.entries(best)) {
+      tasks[chefId] = {
+        stepName:    row.name,
+        dishName:    row.order_items?.menu_items?.name    ?? '',
+        tableNumber: row.order_items?.orders?.table_number ?? 0,
+      };
+    }
+    setChefTasks(tasks);
+  }, [supabase]);
+
+  useEffect(() => { fetchChefTasks(); }, [fetchChefTasks]);
+
   const refetch = useCallback(async () => {
+    fetchChefTasks();
     const { data, error } = await supabase
       .from('orders')
       .select(ORDER_SELECT)
@@ -72,7 +112,7 @@ export default function DashboardView({ initialOrders, stations }: Props) {
         setDisplayOrders([...cleaned]);
       }, COMPLETION_ANIM_MS);
     }
-  }, [supabase]);
+  }, [supabase, fetchChefTasks]);
 
   useEffect(() => {
     const channel = supabase
@@ -148,7 +188,7 @@ export default function DashboardView({ initialOrders, stations }: Props) {
       {/* Right panel: station sidebar + chef tracker */}
       <aside className="w-60 shrink-0 border-l border-gray-800 flex flex-col overflow-y-auto">
         <StationSidebar stations={stationSummaries} />
-        <ChefTracker chefs={chefs} activeOrders={activeOrders} />
+        <ChefTracker chefs={chefs} chefTasks={chefTasks} />
       </aside>
     </div>
   );
