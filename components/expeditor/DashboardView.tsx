@@ -29,6 +29,7 @@ export default function DashboardView({ initialOrders, stations }: Props) {
   const displayRef = useRef<DisplayOrder[]>(initialOrders);
   const [chefs, setChefs] = useState<ChefWithStations[]>([]);
   const [chefTasks, setChefTasks] = useState<Record<string, ChefTask>>({});
+  const [unassignedTask, setUnassignedTask] = useState<ChefTask | null>(null);
 
   useEffect(() => {
     fetch('/api/chefs')
@@ -47,30 +48,41 @@ export default function DashboardView({ initialOrders, stations }: Props) {
           orders!inner ( table_number )
         )
       `)
-      .eq('status', 'in_progress')
-      .not('assigned_chef_id', 'is', null);
+      .eq('status', 'in_progress');
 
     if (!data) return;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    type Row = { id: string; name: string; started_at: string | null; assigned_chef_id: string; order_items: any };
-    const best: Record<string, Row> = {};
+    type Row = { id: string; name: string; started_at: string | null; assigned_chef_id: string | null; order_items: any };
+
+    const toTask = (row: Row): ChefTask => ({
+      stepName:    row.name,
+      dishName:    row.order_items?.menu_items?.name    ?? '',
+      tableNumber: row.order_items?.orders?.table_number ?? 0,
+    });
+
+    const bestByChef: Record<string, Row> = {};
+    let bestUnassigned: Row | null = null;
+
     for (const row of data as Row[]) {
-      const prev = best[row.assigned_chef_id];
-      if (!prev || (row.started_at && (!prev.started_at || row.started_at > prev.started_at))) {
-        best[row.assigned_chef_id] = row;
+      if (row.assigned_chef_id === null) {
+        if (!bestUnassigned || (row.started_at && (!bestUnassigned.started_at || row.started_at > bestUnassigned.started_at))) {
+          bestUnassigned = row;
+        }
+      } else {
+        const prev = bestByChef[row.assigned_chef_id];
+        if (!prev || (row.started_at && (!prev.started_at || row.started_at > prev.started_at))) {
+          bestByChef[row.assigned_chef_id] = row;
+        }
       }
     }
 
     const tasks: Record<string, ChefTask> = {};
-    for (const [chefId, row] of Object.entries(best)) {
-      tasks[chefId] = {
-        stepName:    row.name,
-        dishName:    row.order_items?.menu_items?.name    ?? '',
-        tableNumber: row.order_items?.orders?.table_number ?? 0,
-      };
+    for (const [chefId, row] of Object.entries(bestByChef)) {
+      tasks[chefId] = toTask(row);
     }
     setChefTasks(tasks);
+    setUnassignedTask(bestUnassigned ? toTask(bestUnassigned) : null);
   }, [supabase]);
 
   useEffect(() => { fetchChefTasks(); }, [fetchChefTasks]);
@@ -188,7 +200,7 @@ export default function DashboardView({ initialOrders, stations }: Props) {
       {/* Right panel: station sidebar + chef tracker */}
       <aside className="w-60 shrink-0 border-l border-gray-800 flex flex-col overflow-y-auto">
         <StationSidebar stations={stationSummaries} />
-        <ChefTracker chefs={chefs} chefTasks={chefTasks} />
+        <ChefTracker chefs={chefs} chefTasks={chefTasks} unassignedTask={unassignedTask} />
       </aside>
     </div>
   );

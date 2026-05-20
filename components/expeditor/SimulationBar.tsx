@@ -27,9 +27,10 @@ export default function SimulationBar() {
   const [loadingCatalog, setLoadingCatalog] = useState(false);
   const [existingOrderCount, setExistingOrderCount] = useState<number | null>(null);
 
-  const runningRef    = useRef(false);
-  const scheduledRef  = useRef(new Set<string>());
-  const presetCfgRef  = useRef<typeof PRESETS[PresetKey]>(PRESETS.steady);
+  const runningRef       = useRef(false);
+  const scheduledRef     = useRef(new Set<string>());
+  const presetCfgRef     = useRef<typeof PRESETS[PresetKey]>(PRESETS.steady);
+  const stationChefsRef  = useRef<Record<string, string[]>>({});
   const orderTimer    = useRef<ReturnType<typeof setInterval> | null>(null);
   const cookPollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -40,7 +41,8 @@ export default function SimulationBar() {
     Promise.all([
       supabase.from('menu_items').select('id, name'),
       supabase.from('recipe_steps').select('menu_item_id, estimated_duration'),
-    ]).then(([{ data: items }, { data: steps }]) => {
+      supabase.from('chef_stations').select('chef_id, station_id'),
+    ]).then(([{ data: items }, { data: steps }, { data: chefStations }]) => {
       if (!items || !steps) return;
       const totals: Record<string, number> = {};
       for (const s of steps) {
@@ -51,6 +53,12 @@ export default function SimulationBar() {
           .filter(m => (totals[m.id] ?? 0) > 0)
           .map(m => ({ id: m.id, name: m.name, totalDuration: totals[m.id] })),
       );
+      const map: Record<string, string[]> = {};
+      for (const cs of chefStations ?? []) {
+        if (!map[cs.station_id]) map[cs.station_id] = [];
+        map[cs.station_id].push(cs.chef_id);
+      }
+      stationChefsRef.current = map;
     }).finally(() => setLoadingCatalog(false));
   }, [open, catalog, loadingCatalog, supabase]);
 
@@ -58,11 +66,17 @@ export default function SimulationBar() {
     id: string,
     estimatedDuration: number,
     delayChance: number,
+    stationId: string,
   ) => {
     setTimeout(async () => {
       if (!runningRef.current) { scheduledRef.current.delete(id); return; }
+      const chefIds = stationChefsRef.current[stationId] ?? [];
+      const chefId  = chefIds.length > 0 ? chefIds[Math.floor(Math.random() * chefIds.length)] : null;
       try {
-        const startRes = await fetch(`/api/steps/${id}/start`, { method: 'POST' });
+        const startRes = await fetch(`/api/steps/${id}/start`, {
+          method: 'POST',
+          ...(chefId ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chef_id: chefId }) } : {}),
+        });
         console.log(`[sim] start  step ${id} → ${startRes.status}`);
         if (!startRes.ok && startRes.status !== 409) { scheduledRef.current.delete(id); return; }
       } catch (err) {
@@ -153,7 +167,7 @@ export default function SimulationBar() {
 
       busyStation.add(stationKey);
       scheduledRef.current.add(step.id);
-      scheduleStep(step.id, step.estimated_duration, presetCfgRef.current.delayChance);
+      scheduleStep(step.id, step.estimated_duration, presetCfgRef.current.delayChance, step.station_id);
       newlyScheduled++;
     }
 
