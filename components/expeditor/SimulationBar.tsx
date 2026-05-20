@@ -99,6 +99,10 @@ export default function SimulationBar() {
     const assignedThisTick = new Set<string>();
 
     for (const step of candidates) {
+      // Another step of this dish was assigned earlier in this same tick (candidates
+      // were snapshotted before the loop, so assignedDishIds must be re-checked here).
+      if (assignedDishIds.current.has(step.order_item_id)) continue;
+
       const eligible = chefs.filter(c =>
         c.stationIds.includes(step.station_id) &&
         !busyChefIds.has(c.id) &&
@@ -116,6 +120,7 @@ export default function SimulationBar() {
         });
 
         if (res.ok) {
+          console.log(`[dispatch] step ${step.id.slice(0, 8)} step_number=${step.step_number} dish=${step.order_item_id.slice(0, 8)} → ${chef.name}`);
           busyChefIds.add(chef.id);
           assignedThisTick.add(chef.id);
           assignedDishIds.current.add(step.order_item_id);
