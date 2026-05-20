@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
+const AUTO_MODE_KEY = 'kitchen_auto_mode';
+
 const PRESETS = {
   steady:      { label: 'Steady',      ordersPerMin: 1, delayChance: 0.00 },
   dinner_rush: { label: 'Dinner Rush', ordersPerMin: 3, delayChance: 0.20 },
@@ -199,10 +201,12 @@ export default function SimulationBar() {
       setOrdersRunning(false);
       if (orderTimer.current) clearInterval(orderTimer.current);
       orderTimer.current = null;
+      localStorage.setItem(AUTO_MODE_KEY, 'false');
     } else {
       runningRef.current = true;
       setAutoMode(true);
       fetchChefsAndStartDispatcher();
+      localStorage.setItem(AUTO_MODE_KEY, 'true');
     }
   }
 
@@ -211,6 +215,7 @@ export default function SimulationBar() {
     runningRef.current   = true;
     setOrdersRunning(true);
     setAutoMode(true);
+    localStorage.setItem(AUTO_MODE_KEY, 'true');
 
     const intervalMs = (60 / presetCfgRef.current.ordersPerMin) * 1000;
     createOrder(items);
@@ -261,6 +266,7 @@ export default function SimulationBar() {
     setAutoMode(false);
     if (orderTimer.current) clearInterval(orderTimer.current);
     orderTimer.current = null;
+    localStorage.setItem(AUTO_MODE_KEY, 'false');
   }
 
   useEffect(() => {
@@ -270,6 +276,17 @@ export default function SimulationBar() {
       if (orderTimer.current) clearInterval(orderTimer.current);
     };
   }, []); // refs are stable; runs only on unmount
+
+  // Restore auto mode after page navigation / refresh.
+  // Only restarts the dispatcher (processes in-flight orders);
+  // order generation does not auto-resume.
+  useEffect(() => {
+    if (localStorage.getItem(AUTO_MODE_KEY) === 'true') {
+      runningRef.current = true;
+      setAutoMode(true);
+      fetchChefsAndStartDispatcher();
+    }
+  }, [fetchChefsAndStartDispatcher]);
 
   return (
     <div className="border-b border-gray-800 bg-gray-950 shrink-0">
