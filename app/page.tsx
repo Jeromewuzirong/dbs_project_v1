@@ -277,6 +277,17 @@ function Dashboard({
             History
           </Link>
         )}
+
+        {isStaff && (
+          <Link
+            href="/leaderboard"
+            className="flex-1 min-w-[200px] flex items-center justify-center gap-2 rounded-2xl border border-gray-700 hover:border-gray-500 hover:bg-gray-900
+                       text-gray-400 hover:text-white font-bold text-lg py-6 px-6 transition-colors cursor-pointer"
+          >
+            <span className="text-2xl">🏆</span>
+            Leaderboard
+          </Link>
+        )}
       </div>
 
       {isAdmin && (

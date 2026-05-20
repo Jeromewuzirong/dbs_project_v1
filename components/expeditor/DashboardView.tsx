@@ -201,6 +201,9 @@ export default function DashboardView({ initialOrders, stations }: Props) {
             <Link href="/history" className="text-gray-500 hover:text-white transition-colors text-sm font-medium cursor-pointer">
               History
             </Link>
+            <Link href="/leaderboard" className="text-gray-500 hover:text-white transition-colors text-sm font-medium cursor-pointer">
+              Leaderboard
+            </Link>
             <Link href="/chefs" className="text-gray-500 hover:text-white transition-colors text-sm font-medium cursor-pointer">
               Manage Chefs
             </Link>
