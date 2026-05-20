@@ -33,10 +33,13 @@ export default function SimulationBar() {
   const [loadingCatalog, setLoadingCatalog] = useState(false);
   const [existingOrderCount, setExistingOrderCount] = useState<number | null>(null);
 
-  const runningRef       = useRef(false);
-  const dispatchTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const presetCfgRef     = useRef<typeof PRESETS[PresetKey]>(PRESETS.steady);
-  const orderTimer       = useRef<ReturnType<typeof setInterval> | null>(null);
+  const runningRef        = useRef(false);
+  const dispatchTimerRef  = useRef<ReturnType<typeof setInterval> | null>(null);
+  const presetCfgRef      = useRef<typeof PRESETS[PresetKey]>(PRESETS.steady);
+  const orderTimer        = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Dishes assigned this dispatcher session but whose cook timer hasn't fired yet.
+  // Prevents next-step pickup before the current step finishes cooking.
+  const assignedDishIds   = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (!open || catalog !== null || loadingCatalog) return;
@@ -88,7 +91,9 @@ export default function SimulationBar() {
 
     if (!runningRef.current) return;
 
-    const candidates = (rawCandidates ?? []).filter(s => !busyDishIds.has(s.order_item_id));
+    const candidates = (rawCandidates ?? []).filter(
+      s => !busyDishIds.has(s.order_item_id) && !assignedDishIds.current.has(s.order_item_id)
+    );
 
     // 3. Assign each candidate to a randomly chosen eligible idle chef.
     const assignedThisTick = new Set<string>();
@@ -113,10 +118,12 @@ export default function SimulationBar() {
         if (res.ok) {
           busyChefIds.add(chef.id);
           assignedThisTick.add(chef.id);
+          assignedDishIds.current.add(step.order_item_id);
 
           const extra  = Math.random() < presetCfgRef.current.delayChance ? (30 + Math.random() * 60) * 100 : 0;
           const cookMs = step.estimated_duration * 100 + extra;
           setTimeout(() => {
+            assignedDishIds.current.delete(step.order_item_id);
             if (!runningRef.current) return;
             fetch(`/api/steps/${step.id}/complete`, { method: 'POST' }).catch(() => {});
           }, cookMs);
@@ -132,6 +139,7 @@ export default function SimulationBar() {
       clearInterval(dispatchTimerRef.current);
       dispatchTimerRef.current = null;
     }
+    assignedDishIds.current.clear();
   }, []);
 
   const startDispatcher = useCallback((chefs: SimChef[]) => {
