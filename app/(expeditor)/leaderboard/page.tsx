@@ -5,9 +5,7 @@ interface ChefStats {
   chefId: string;
   name: string;
   stepsCompleted: number;
-  onTimeRate: number;   // 0–100
-  avgDelay: number;     // seconds, late steps only
-  score: number;        // onTimeRate * stepsCompleted, 1 dp
+  onTimeRate: number; // 0–100
 }
 
 const MEDALS = ['🥇', '🥈', '🥉'];
@@ -15,64 +13,53 @@ const MEDALS = ['🥇', '🥈', '🥉'];
 export default async function LeaderboardPage() {
   const supabase = await createClient();
 
-  const { data, error } = await supabase
-    .from('order_steps')
-    .select(`
-      assigned_chef_id,
-      estimated_duration,
-      actual_duration,
-      chef:chefs!assigned_chef_id ( name )
-    `)
-    .eq('status', 'completed')
-    .not('assigned_chef_id', 'is', null);
+  const [{ data: steps, error: stepsError }, { data: chefs, error: chefsError }] =
+    await Promise.all([
+      supabase
+        .from('order_steps')
+        .select('assigned_chef_id, estimated_duration, actual_duration')
+        .eq('status', 'completed')
+        .not('assigned_chef_id', 'is', null),
+      supabase
+        .from('chefs')
+        .select('id, name'),
+    ]);
 
-  if (error) {
+  if (stepsError || chefsError) {
+    const msg = stepsError?.message ?? chefsError?.message;
     return (
       <main className="min-h-screen bg-gray-950 text-white p-6">
-        <p className="text-red-400">Failed to load leaderboard: {error.message}</p>
+        <p className="text-red-400">Failed to load leaderboard: {msg}</p>
       </main>
     );
   }
 
-  // Aggregate per chef — skip rows where actual_duration is null
-  const byChef = new Map<string, {
-    name: string;
-    total: number;
-    onTime: number;
-    lateSum: number;
-    lateCount: number;
-  }>();
+  const chefNames = new Map((chefs ?? []).map(c => [c.id, c.name]));
+
+  const byChef = new Map<string, { total: number; onTime: number }>();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  for (const row of (data ?? []) as any[]) {
+  for (const row of (steps ?? []) as any[]) {
     if (row.actual_duration === null) continue;
 
-    const id: string   = row.assigned_chef_id;
-    const name: string = row.chef?.name ?? 'Unknown';
-
-    if (!byChef.has(id)) {
-      byChef.set(id, { name, total: 0, onTime: 0, lateSum: 0, lateCount: 0 });
-    }
+    const id: string = row.assigned_chef_id;
+    if (!byChef.has(id)) byChef.set(id, { total: 0, onTime: 0 });
 
     const c = byChef.get(id)!;
     c.total += 1;
-
-    if (row.actual_duration <= row.estimated_duration) {
-      c.onTime += 1;
-    } else {
-      c.lateSum   += row.actual_duration - row.estimated_duration;
-      c.lateCount += 1;
-    }
+    if (row.actual_duration <= row.estimated_duration) c.onTime += 1;
   }
 
   const stats: ChefStats[] = [...byChef.entries()]
-    .map(([chefId, c]) => {
-      const onTimeRate = c.total > 0 ? (c.onTime / c.total) * 100 : 0;
-      const avgDelay   = c.lateCount > 0 ? Math.round(c.lateSum / c.lateCount) : 0;
-      const score      = Math.round(onTimeRate * c.total * 10) / 10;
-      return { chefId, name: c.name, stepsCompleted: c.total, onTimeRate, avgDelay, score };
-    })
-    .sort((a, b) => b.score - a.score);
+    .map(([chefId, c]) => ({
+      chefId,
+      name:           chefNames.get(chefId) ?? 'Unknown',
+      stepsCompleted: c.total,
+      onTimeRate:     c.total > 0 ? (c.onTime / c.total) * 100 : 0,
+    }))
+    .sort((a, b) =>
+      b.onTimeRate - a.onTimeRate || b.stepsCompleted - a.stepsCompleted,
+    );
 
   return (
     <main className="min-h-screen bg-gray-950 text-white">
@@ -94,9 +81,7 @@ export default async function LeaderboardPage() {
                 <th className="pb-3 pr-6 font-semibold">Rank</th>
                 <th className="pb-3 pr-8 font-semibold">Chef</th>
                 <th className="pb-3 pr-8 font-semibold text-right">Steps</th>
-                <th className="pb-3 pr-8 font-semibold text-right">On-time</th>
-                <th className="pb-3 pr-8 font-semibold text-right">Avg delay</th>
-                <th className="pb-3 font-semibold text-right">Score</th>
+                <th className="pb-3 font-semibold text-right">On-time</th>
               </tr>
             </thead>
             <tbody>
@@ -116,18 +101,12 @@ export default async function LeaderboardPage() {
                   <td className="py-3 pr-8 text-gray-300 tabular-nums text-right">
                     {chef.stepsCompleted}
                   </td>
-                  <td className={`py-3 pr-8 tabular-nums font-semibold text-right ${
+                  <td className={`py-3 tabular-nums font-semibold text-right ${
                     chef.onTimeRate >= 80 ? 'text-green-400' :
                     chef.onTimeRate >= 60 ? 'text-amber-400' :
                                             'text-red-400'
                   }`}>
                     {chef.onTimeRate.toFixed(1)}%
-                  </td>
-                  <td className="py-3 pr-8 text-gray-400 tabular-nums text-right font-mono text-xs">
-                    {chef.avgDelay > 0 ? `+${chef.avgDelay}s` : '—'}
-                  </td>
-                  <td className="py-3 font-bold tabular-nums text-right text-white">
-                    {chef.score.toFixed(1)}
                   </td>
                 </tr>
               ))}
