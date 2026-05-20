@@ -90,8 +90,18 @@ export default function SimulationBar() {
         continue;
       }
 
-      // 2. Find a fired/pending step at my stations that's free or already mine
-      const { data: candidates } = await supabase
+      // 2. Find a fired/pending step at my stations that's free or already mine,
+      //    but only for dishes where no step is currently in_progress.
+      const { data: busyItems } = await supabase
+        .from('order_steps')
+        .select('order_item_id')
+        .eq('status', 'in_progress');
+
+      if (!runningRef.current || generationRef.current !== generation) break;
+
+      const busyIds = (busyItems ?? []).map(s => s.order_item_id);
+
+      let candidateQuery = supabase
         .from('order_steps')
         .select('id, estimated_duration')
         .in('status', ['fired', 'pending'])
@@ -99,6 +109,12 @@ export default function SimulationBar() {
         .or(`assigned_chef_id.is.null,assigned_chef_id.eq.${chef.id}`)
         .order('step_number', { ascending: true })
         .limit(1);
+
+      if (busyIds.length > 0) {
+        candidateQuery = candidateQuery.not('order_item_id', 'in', `(${busyIds.join(',')})`);
+      }
+
+      const { data: candidates } = await candidateQuery;
 
       if (!runningRef.current || generationRef.current !== generation) break;
 
