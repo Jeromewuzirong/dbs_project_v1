@@ -1,14 +1,11 @@
 import { NextResponse } from 'next/server';
 import { adminClient } from '@/lib/supabase/admin';
-import { requireApiRole } from '@/lib/auth';
 
 // Deletes all rows from all three tables in dependency order.
 // UUID tables: use neq('id', nil-UUID) as the required filter to delete all rows.
 const NIL_UUID = '00000000-0000-0000-0000-000000000000';
 
 export async function POST() {
-  const guard = await requireApiRole('admin');
-  if (guard instanceof NextResponse) return guard;
   const { error: stepsErr } = await adminClient
     .from('order_steps')
     .delete()

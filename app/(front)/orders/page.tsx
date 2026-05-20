@@ -1,7 +1,7 @@
+'use client';
+
+import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { auth } from '@clerk/nextjs/server';
-import { requireRole } from '@/lib/auth';
-import { adminClient } from '@/lib/supabase/admin';
 
 type StepStatus = 'pending' | 'fired' | 'in_progress' | 'completed';
 
@@ -35,10 +35,10 @@ const STATUS_BADGE: Record<string, string> = {
 
 function StepPip({ status }: { status: StepStatus }) {
   const cls =
-    status === 'completed'  ? 'bg-green-500'  :
-    status === 'in_progress'? 'bg-amber-400 animate-pulse' :
-    status === 'fired'      ? 'bg-amber-600'  :
-                              'bg-gray-700';
+    status === 'completed'   ? 'bg-green-500' :
+    status === 'in_progress' ? 'bg-amber-400 animate-pulse' :
+    status === 'fired'       ? 'bg-amber-600' :
+                               'bg-gray-700';
   return <span className={`inline-block w-2.5 h-2.5 rounded-full ${cls}`} title={status} />;
 }
 
@@ -49,25 +49,9 @@ function formatTime(iso: string) {
   });
 }
 
-export default async function MyOrdersPage() {
-  await requireRole('customer', 'admin');
-  const { userId } = await auth();
-
-  const { data: rawOrders } = await adminClient
-    .from('orders')
-    .select(`
-      id, table_number, status, target_serve_time, created_at,
-      order_items (
-        id,
-        menu_items ( name ),
-        order_steps ( id, step_number, name, status )
-      )
-    `)
-    .eq('clerk_user_id', userId!)
-    .order('created_at', { ascending: false });
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const orders: MyOrder[] = (rawOrders ?? []).map((row: any) => ({
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapOrders(raw: any[]): MyOrder[] {
+  return raw.map(row => ({
     id:                row.id,
     table_number:      row.table_number,
     status:            row.status,
@@ -81,6 +65,61 @@ export default async function MyOrdersPage() {
         .sort((a: any, b: any) => a.step_number - b.step_number),
     })),
   }));
+}
+
+export default function MyOrdersPage() {
+  const [orders, setOrders]   = useState<MyOrder[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [noId, setNoId]       = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchOrders = useCallback(async (customerId: string, opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setRefreshing(true);
+    try {
+      const res  = await fetch(`/api/orders/mine?customerId=${customerId}`);
+      const data = await res.json();
+      setOrders(Array.isArray(data) ? mapOrders(data) : []);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const stored = localStorage.getItem('kitchen_role');
+    const parsed = stored ? (JSON.parse(stored) as { customerId?: string }) : {};
+    if (!parsed.customerId) {
+      setLoading(false);
+      setNoId(true);
+      return;
+    }
+    fetchOrders(parsed.customerId);
+  }, [fetchOrders]);
+
+  function handleRefresh() {
+    const stored = localStorage.getItem('kitchen_role');
+    const parsed = stored ? (JSON.parse(stored) as { customerId?: string }) : {};
+    if (parsed.customerId) fetchOrders(parsed.customerId);
+  }
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-gray-950 flex items-center justify-center">
+        <p className="text-gray-500 text-sm">Loading orders…</p>
+      </main>
+    );
+  }
+
+  if (noId) {
+    return (
+      <main className="min-h-screen bg-gray-950 flex flex-col items-center justify-center gap-4 px-6">
+        <p className="text-gray-400">No customer session found.</p>
+        <Link href="/" className="text-sm text-blue-400 hover:text-blue-300 transition-colors">
+          ← Go to Home to set your role
+        </Link>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-gray-950 text-white px-4 py-10">
@@ -92,6 +131,13 @@ export default async function MyOrdersPage() {
           </Link>
           <h1 className="text-2xl font-black tracking-tight">My Orders</h1>
           <span className="text-sm text-gray-500">{orders.length} order{orders.length !== 1 ? 's' : ''}</span>
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="ml-auto text-xs text-gray-500 hover:text-white disabled:opacity-40 transition-colors border border-gray-700 hover:border-gray-500 px-3 py-1 rounded-lg"
+          >
+            {refreshing ? 'Refreshing…' : 'Refresh'}
+          </button>
         </div>
 
         {orders.length === 0 ? (
@@ -107,7 +153,7 @@ export default async function MyOrdersPage() {
         ) : (
           <div className="flex flex-col gap-5">
             {orders.map(order => {
-              const badgeCls = STATUS_BADGE[order.status] ?? STATUS_BADGE.pending;
+              const badgeCls  = STATUS_BADGE[order.status] ?? STATUS_BADGE.pending;
               const totalSteps = order.items.reduce((n, i) => n + i.steps.length, 0);
               const doneSteps  = order.items.reduce(
                 (n, i) => n + i.steps.filter(s => s.status === 'completed').length, 0,
@@ -115,7 +161,6 @@ export default async function MyOrdersPage() {
 
               return (
                 <div key={order.id} className="rounded-2xl border border-gray-800 bg-gray-900 p-5">
-                  {/* Order header */}
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
                       <span className="text-lg font-black text-white">Table {order.table_number}</span>
@@ -129,7 +174,6 @@ export default async function MyOrdersPage() {
                     </div>
                   </div>
 
-                  {/* Overall progress bar */}
                   {totalSteps > 0 && (
                     <div className="mb-4">
                       <div className="flex justify-between text-xs text-gray-500 mb-1">
@@ -145,7 +189,6 @@ export default async function MyOrdersPage() {
                     </div>
                   )}
 
-                  {/* Dishes */}
                   <div className="flex flex-col gap-3">
                     {order.items.map(item => (
                       <div key={item.id}>
@@ -168,7 +211,7 @@ export default async function MyOrdersPage() {
         )}
 
         <p className="text-center text-xs text-gray-700 mt-8">
-          Refresh the page to see the latest progress.
+          Hit Refresh to see the latest progress.
         </p>
       </div>
     </main>

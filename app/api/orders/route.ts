@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { adminClient } from '@/lib/supabase/admin';
 import { reschedule } from '@/lib/scheduler';
 import type { OrderItemWithSteps } from '@/lib/scheduler';
-import { requireAuth } from '@/lib/auth';
 
 // pg_advisory_xact_lock requires a direct Postgres connection (not PostgREST).
 // For order creation there is no concurrency risk — each order gets a new UUID.
@@ -10,14 +9,11 @@ import { requireAuth } from '@/lib/auth';
 
 interface CreateOrderBody {
   table_number: number;
-  items: string[];  // menu_item_id[]
+  items: string[];       // menu_item_id[]
+  customer_id?: string;  // localStorage UUID for order tracking
 }
 
 export async function POST(request: Request) {
-  const guard = await requireAuth();
-  if (guard instanceof NextResponse) return guard;
-  const { userId } = guard;
-
   // --- Parse & validate --------------------------------------------------
   let body: CreateOrderBody;
   try {
@@ -26,7 +22,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const { table_number, items } = body;
+  const { table_number, items, customer_id } = body;
   if (
     typeof table_number !== 'number' ||
     !Array.isArray(items) ||
@@ -60,7 +56,7 @@ export async function POST(request: Request) {
   // --- 1. Insert order ---------------------------------------------------
   const { data: order, error: orderErr } = await adminClient
     .from('orders')
-    .insert({ table_number, target_serve_time, status: 'active', clerk_user_id: userId })
+    .insert({ table_number, target_serve_time, status: 'active', clerk_user_id: customer_id ?? null })
     .select()
     .single();
 

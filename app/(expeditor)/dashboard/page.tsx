@@ -3,10 +3,8 @@ import { createClient } from '@/lib/supabase/server';
 import { transformOrders, ORDER_SELECT } from '@/components/expeditor/types';
 import DashboardView from '@/components/expeditor/DashboardView';
 import type { RawStation } from '@/components/expeditor/types';
-import { requireRole } from '@/lib/auth';
 
 export default async function DashboardPage() {
-  await requireRole('chef', 'admin');
   const supabase = await createClient();
 
   const [ordersResult, stationsResult] = await Promise.all([

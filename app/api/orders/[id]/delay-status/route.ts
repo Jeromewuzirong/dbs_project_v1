@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { adminClient } from '@/lib/supabase/admin';
 import type { DelayStatus } from '@/lib/types';
-import { requireAuth } from '@/lib/auth';
 
 const DELAY_TOLERANCE_MS = 60 * 1000;
 
@@ -9,8 +8,6 @@ export async function PATCH(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const guard = await requireAuth();
-  if (guard instanceof NextResponse) return guard;
   const { id } = await params;
 
   const { data: order, error: orderErr } = await adminClient

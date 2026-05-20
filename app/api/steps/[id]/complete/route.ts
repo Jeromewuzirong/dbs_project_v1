@@ -3,7 +3,6 @@ import { adminClient } from '@/lib/supabase/admin';
 import { reschedule } from '@/lib/scheduler';
 import type { OrderItemWithSteps } from '@/lib/scheduler';
 import type { StepStatus } from '@/lib/types';
-import { requireAuth } from '@/lib/auth';
 
 // TODO: pg_try_advisory_xact_lock(order_id) — needs DATABASE_URL (direct Postgres
 // connection). Without it, two concurrent completions on the same order can race on
@@ -15,8 +14,6 @@ export async function POST(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const guard = await requireAuth();
-  if (guard instanceof NextResponse) return guard;
   const { id } = await params;
 
   // --- 1. Fetch + validate the step ------------------------------------

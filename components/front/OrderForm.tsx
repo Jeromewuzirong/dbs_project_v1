@@ -49,12 +49,16 @@ export default function OrderForm({ menuItems }: Props) {
     setErrorMsg('');
 
     try {
+      const stored = localStorage.getItem('kitchen_role');
+      const customerId = stored ? (JSON.parse(stored) as { customerId?: string }).customerId : undefined;
+
       const res = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           table_number: tableNumber,
           items,
+          customer_id: customerId ?? null,
         }),
       });
 
@@ -85,10 +89,10 @@ export default function OrderForm({ menuItems }: Props) {
             Place another order
           </button>
           <Link
-            href="/dashboard"
+            href="/orders"
             className="rounded-xl border border-gray-700 hover:border-gray-500 hover:bg-gray-900 text-gray-400 hover:text-white font-bold py-3 px-6 transition-colors text-center"
           >
-            Go to Dashboard
+            View My Orders
           </Link>
         </div>
       </div>

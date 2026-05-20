@@ -1,10 +1,8 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import ChefManager from '@/components/expeditor/ChefManager';
-import { requireRole } from '@/lib/auth';
 
 export default async function ChefsPage() {
-  await requireRole('admin');
   const supabase = await createClient();
 
   const { data: stations } = await supabase
