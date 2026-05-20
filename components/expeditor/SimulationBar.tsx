@@ -19,12 +19,6 @@ interface CatalogItem {
   totalDuration: number;
 }
 
-interface SimChef {
-  id: string;
-  name: string;
-  stationIds: string[];
-}
-
 export default function SimulationBar() {
   const [supabase]          = useState(() => createClient());
   const [open, setOpen]     = useState(false);
@@ -35,13 +29,10 @@ export default function SimulationBar() {
   const [loadingCatalog, setLoadingCatalog] = useState(false);
   const [existingOrderCount, setExistingOrderCount] = useState<number | null>(null);
 
-  const runningRef        = useRef(false);
-  const dispatchTimerRef  = useRef<ReturnType<typeof setInterval> | null>(null);
-  const presetCfgRef      = useRef<typeof PRESETS[PresetKey]>(PRESETS.steady);
-  const orderTimer        = useRef<ReturnType<typeof setInterval> | null>(null);
-  // Dishes assigned this dispatcher session but whose cook timer hasn't fired yet.
-  // Prevents next-step pickup before the current step finishes cooking.
-  const assignedDishIds   = useRef<Set<string>>(new Set());
+  const runningRef       = useRef(false);
+  const dispatchTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const presetCfgRef     = useRef<typeof PRESETS[PresetKey]>(PRESETS.steady);
+  const orderTimer       = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (!open || catalog !== null || loadingCatalog) return;
@@ -64,109 +55,27 @@ export default function SimulationBar() {
     }).finally(() => setLoadingCatalog(false));
   }, [open, catalog, loadingCatalog, supabase]);
 
-  // Central dispatcher: one tick every 2 s.
-  // Reads current DB state, then serially assigns idle chefs to unclaimed steps.
-  const dispatch = useCallback(async (chefs: SimChef[]) => {
-    if (!runningRef.current) return;
-
-    // 1. Which chefs and dishes are already occupied?
-    const { data: inProgress } = await supabase
-      .from('order_steps')
-      .select('assigned_chef_id, order_item_id')
-      .eq('status', 'in_progress');
-
-    if (!runningRef.current) return;
-
-    const busyChefIds = new Set<string>();
-    const busyDishIds = new Set<string>();
-    for (const row of inProgress ?? []) {
-      if (row.assigned_chef_id) busyChefIds.add(row.assigned_chef_id);
-      busyDishIds.add(row.order_item_id);
-    }
-
-    // 2. Actionable steps: fired/pending, not in a dish that already has a step in_progress.
-    const { data: rawCandidates } = await supabase
-      .from('order_steps')
-      .select('id, station_id, order_item_id, estimated_duration, step_number')
-      .in('status', ['fired', 'pending'])
-      .order('step_number', { ascending: true });
-
-    if (!runningRef.current) return;
-
-    const candidates = (rawCandidates ?? []).filter(
-      s => !busyDishIds.has(s.order_item_id) && !assignedDishIds.current.has(s.order_item_id)
-    );
-
-    // 3. Assign each candidate to a randomly chosen eligible idle chef.
-    const assignedThisTick = new Set<string>();
-
-    for (const step of candidates) {
-      // Another step of this dish was assigned earlier in this same tick (candidates
-      // were snapshotted before the loop, so assignedDishIds must be re-checked here).
-      if (assignedDishIds.current.has(step.order_item_id)) continue;
-
-      const eligible = chefs.filter(c =>
-        c.stationIds.includes(step.station_id) &&
-        !busyChefIds.has(c.id) &&
-        !assignedThisTick.has(c.id)
-      );
-      if (eligible.length === 0) continue;
-
-      const chef = eligible[Math.floor(Math.random() * eligible.length)];
-
-      try {
-        const res = await fetch(`/api/steps/${step.id}/start`, {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ chef_id: chef.id }),
-        });
-
-        if (res.ok) {
-          console.log(`[dispatch] step ${step.id.slice(0, 8)} step_number=${step.step_number} dish=${step.order_item_id.slice(0, 8)} → ${chef.name}`);
-          busyChefIds.add(chef.id);
-          assignedThisTick.add(chef.id);
-          assignedDishIds.current.add(step.order_item_id);
-
-          const extra  = Math.random() < presetCfgRef.current.delayChance ? (30 + Math.random() * 60) * 100 : 0;
-          const cookMs = step.estimated_duration * 100 + extra;
-          setTimeout(() => {
-            assignedDishIds.current.delete(step.order_item_id);
-            if (!runningRef.current) return;
-            fetch(`/api/steps/${step.id}/complete`, { method: 'POST' }).catch(() => {});
-          }, cookMs);
-        }
-      } catch {
-        // transient error — will retry next tick
-      }
-    }
-  }, [supabase]);
+  // Each tick POSTs to /api/dispatch which runs the full assignment + completion
+  // logic server-side, so the dispatcher keeps working even when the browser
+  // navigates away from this page.
+  const startDispatcher = useCallback(() => {
+    if (dispatchTimerRef.current) return; // guard: already running
+    const tick = () =>
+      fetch('/api/dispatch', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ delayChance: presetCfgRef.current.delayChance }),
+      }).catch(() => {});
+    tick();
+    dispatchTimerRef.current = setInterval(tick, 2000);
+  }, []);
 
   const stopDispatcher = useCallback(() => {
     if (dispatchTimerRef.current) {
       clearInterval(dispatchTimerRef.current);
       dispatchTimerRef.current = null;
     }
-    assignedDishIds.current.clear();
   }, []);
-
-  const startDispatcher = useCallback((chefs: SimChef[]) => {
-    if (dispatchTimerRef.current) return; // guard: already running
-    dispatch(chefs);
-    dispatchTimerRef.current = setInterval(() => dispatch(chefs), 2000);
-  }, [dispatch]);
-
-  const fetchChefsAndStartDispatcher = useCallback(() => {
-    type ApiChef = { id: string; name: string; chef_stations: { station_id: string }[] };
-    fetch('/api/chefs')
-      .then(r => r.json())
-      .then((data: ApiChef[]) => {
-        const chefs: SimChef[] = data
-          .filter(c => c.chef_stations.length > 0)
-          .map(c => ({ id: c.id, name: c.name, stationIds: c.chef_stations.map(cs => cs.station_id) }));
-        startDispatcher(chefs);
-      })
-      .catch(() => {});
-  }, [startDispatcher]);
 
   const createOrder = useCallback(async (items: CatalogItem[]) => {
     if (!runningRef.current) return;
@@ -205,7 +114,7 @@ export default function SimulationBar() {
     } else {
       runningRef.current = true;
       setAutoMode(true);
-      fetchChefsAndStartDispatcher();
+      startDispatcher();
       localStorage.setItem(AUTO_MODE_KEY, 'true');
     }
   }
@@ -222,7 +131,7 @@ export default function SimulationBar() {
     orderTimer.current = setInterval(() => createOrder(items), intervalMs);
 
     if (!dispatchTimerRef.current) {
-      fetchChefsAndStartDispatcher();
+      startDispatcher();
     }
   }
 
@@ -284,9 +193,9 @@ export default function SimulationBar() {
     if (localStorage.getItem(AUTO_MODE_KEY) === 'true') {
       runningRef.current = true;
       setAutoMode(true);
-      fetchChefsAndStartDispatcher();
+      startDispatcher();
     }
-  }, [fetchChefsAndStartDispatcher]);
+  }, [startDispatcher]);
 
   return (
     <div className="border-b border-gray-800 bg-gray-950 shrink-0">

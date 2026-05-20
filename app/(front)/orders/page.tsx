@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
+import { createClient } from '@/lib/supabase/client';
 
 type StepStatus = 'pending' | 'fired' | 'in_progress' | 'completed';
 
@@ -68,15 +69,17 @@ function mapOrders(raw: any[]): MyOrder[] {
 }
 
 export default function MyOrdersPage() {
-  const [orders, setOrders]   = useState<MyOrder[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [noId, setNoId]       = useState(false);
+  const [supabase]    = useState(() => createClient());
+  const [orders, setOrders]         = useState<MyOrder[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [noId, setNoId]             = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [customerId, setCustomerId] = useState<string | null>(null);
 
-  const fetchOrders = useCallback(async (customerId: string, opts?: { silent?: boolean }) => {
+  const fetchOrders = useCallback(async (cid: string, opts?: { silent?: boolean }) => {
     if (!opts?.silent) setRefreshing(true);
     try {
-      const res  = await fetch(`/api/orders/mine?customerId=${customerId}`);
+      const res  = await fetch(`/api/orders/mine?customerId=${cid}`);
       const data = await res.json();
       setOrders(Array.isArray(data) ? mapOrders(data) : []);
     } finally {
@@ -85,6 +88,7 @@ export default function MyOrdersPage() {
     }
   }, []);
 
+  // Initial load — read customerId from localStorage and fetch once.
   useEffect(() => {
     const stored = localStorage.getItem('kitchen_role');
     const parsed = stored ? (JSON.parse(stored) as { customerId?: string }) : {};
@@ -93,13 +97,36 @@ export default function MyOrdersPage() {
       setNoId(true);
       return;
     }
+    setCustomerId(parsed.customerId);
     fetchOrders(parsed.customerId);
   }, [fetchOrders]);
 
+  // Realtime: re-fetch silently whenever any of the customer's steps or orders change.
+  useEffect(() => {
+    if (!customerId) return;
+
+    const channel = supabase
+      .channel(`customer-orders-${customerId}`)
+      // All order_steps changes — filter client-side by whether they belong to
+      // this customer is skipped for simplicity; the re-fetch is cheap.
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'order_steps' },
+        () => fetchOrders(customerId, { silent: true }),
+      )
+      // Orders changes filtered server-side to this customer only.
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders', filter: `clerk_user_id=eq.${customerId}` },
+        () => fetchOrders(customerId, { silent: true }),
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [supabase, customerId, fetchOrders]);
+
   function handleRefresh() {
-    const stored = localStorage.getItem('kitchen_role');
-    const parsed = stored ? (JSON.parse(stored) as { customerId?: string }) : {};
-    if (parsed.customerId) fetchOrders(parsed.customerId);
+    if (customerId) fetchOrders(customerId);
   }
 
   if (loading) {
@@ -153,7 +180,7 @@ export default function MyOrdersPage() {
         ) : (
           <div className="flex flex-col gap-5">
             {orders.map(order => {
-              const badgeCls  = STATUS_BADGE[order.status] ?? STATUS_BADGE.pending;
+              const badgeCls   = STATUS_BADGE[order.status] ?? STATUS_BADGE.pending;
               const totalSteps = order.items.reduce((n, i) => n + i.steps.length, 0);
               const doneSteps  = order.items.reduce(
                 (n, i) => n + i.steps.filter(s => s.status === 'completed').length, 0,
@@ -211,7 +238,7 @@ export default function MyOrdersPage() {
         )}
 
         <p className="text-center text-xs text-gray-700 mt-8">
-          Hit Refresh to see the latest progress.
+          Updates automatically as your order is prepared.
         </p>
       </div>
     </main>
