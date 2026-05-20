@@ -17,6 +17,13 @@ interface CatalogItem {
   totalDuration: number;
 }
 
+interface SimChef {
+  id: string;
+  stationIds: string[];
+}
+
+const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+
 export default function SimulationBar() {
   const [supabase]          = useState(() => createClient());
   const [open, setOpen]     = useState(false);
@@ -27,12 +34,10 @@ export default function SimulationBar() {
   const [loadingCatalog, setLoadingCatalog] = useState(false);
   const [existingOrderCount, setExistingOrderCount] = useState<number | null>(null);
 
-  const runningRef       = useRef(false);
-  const scheduledRef     = useRef(new Set<string>());
-  const presetCfgRef     = useRef<typeof PRESETS[PresetKey]>(PRESETS.steady);
-  const stationChefsRef  = useRef<Record<string, string[]>>({});
+  const runningRef    = useRef(false);
+  const generationRef = useRef(0);        // incremented each time loops are (re)started
+  const presetCfgRef  = useRef<typeof PRESETS[PresetKey]>(PRESETS.steady);
   const orderTimer    = useRef<ReturnType<typeof setInterval> | null>(null);
-  const cookPollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (!open || catalog !== null || loadingCatalog) return;
@@ -41,8 +46,7 @@ export default function SimulationBar() {
     Promise.all([
       supabase.from('menu_items').select('id, name'),
       supabase.from('recipe_steps').select('menu_item_id, estimated_duration'),
-      supabase.from('chef_stations').select('chef_id, station_id'),
-    ]).then(([{ data: items }, { data: steps }, { data: chefStations }]) => {
+    ]).then(([{ data: items }, { data: steps }]) => {
       if (!items || !steps) return;
       const totals: Record<string, number> = {};
       for (const s of steps) {
@@ -53,130 +57,123 @@ export default function SimulationBar() {
           .filter(m => (totals[m.id] ?? 0) > 0)
           .map(m => ({ id: m.id, name: m.name, totalDuration: totals[m.id] })),
       );
-      const map: Record<string, string[]> = {};
-      for (const cs of chefStations ?? []) {
-        if (!map[cs.station_id]) map[cs.station_id] = [];
-        map[cs.station_id].push(cs.chef_id);
-      }
-      stationChefsRef.current = map;
     }).finally(() => setLoadingCatalog(false));
   }, [open, catalog, loadingCatalog, supabase]);
 
-  const scheduleStep = useCallback((
-    id: string,
-    estimatedDuration: number,
-    delayChance: number,
-    stationId: string,
-  ) => {
-    setTimeout(async () => {
-      if (!runningRef.current) { scheduledRef.current.delete(id); return; }
-      const chefIds = stationChefsRef.current[stationId] ?? [];
-      const chefId  = chefIds.length > 0 ? chefIds[Math.floor(Math.random() * chefIds.length)] : null;
+  // One async loop per chef. Exits when runningRef is false or generation changes.
+  const runChefLoop = useCallback(async (chef: SimChef, generation: number) => {
+    const tag = `[chef:${chef.id.slice(0, 6)}]`;
+
+    while (runningRef.current && generationRef.current === generation) {
+
+      // 1. Re-adopt any in_progress step already assigned to me
+      const { data: mine } = await supabase
+        .from('order_steps')
+        .select('id, estimated_duration, started_at')
+        .eq('status', 'in_progress')
+        .eq('assigned_chef_id', chef.id)
+        .limit(1);
+
+      if (!runningRef.current || generationRef.current !== generation) break;
+
+      if (mine && mine.length > 0) {
+        const s = mine[0];
+        const elapsed    = s.started_at ? Date.now() - new Date(s.started_at).getTime() : 0;
+        const remainingMs = Math.max(0, s.estimated_duration * 100 - elapsed);
+        console.log(`${tag} re-adopting step ${s.id.slice(0, 6)}, completing in ${(remainingMs / 1000).toFixed(1)}s`);
+        await sleep(remainingMs);
+        if (!runningRef.current || generationRef.current !== generation) break;
+        await fetch(`/api/steps/${s.id}/complete`, { method: 'POST' });
+        continue;
+      }
+
+      // 2. Find a fired/pending step at my stations that's free or already mine
+      const { data: candidates } = await supabase
+        .from('order_steps')
+        .select('id, estimated_duration')
+        .in('status', ['fired', 'pending'])
+        .in('station_id', chef.stationIds)
+        .or(`assigned_chef_id.is.null,assigned_chef_id.eq.${chef.id}`)
+        .order('step_number', { ascending: true })
+        .limit(1);
+
+      if (!runningRef.current || generationRef.current !== generation) break;
+
+      if (!candidates || candidates.length === 0) {
+        await sleep(2000);
+        continue;
+      }
+
+      const step = candidates[0];
+
+      // 3. Claim it — may race another chef at the same station
+      let claimed = false;
       try {
-        const startRes = await fetch(`/api/steps/${id}/start`, {
-          method: 'POST',
-          ...(chefId ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chef_id: chefId }) } : {}),
+        const res = await fetch(`/api/steps/${step.id}/start`, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ chef_id: chef.id }),
         });
-        console.log(`[sim] start  step ${id} → ${startRes.status}`);
-        if (!startRes.ok && startRes.status !== 409) { scheduledRef.current.delete(id); return; }
-      } catch (err) {
-        console.warn(`[sim] start  step ${id} fetch error`, err);
-        scheduledRef.current.delete(id);
-        return;
-      }
-
-      const extraMs = Math.random() < delayChance ? (30 + Math.random() * 60) * 100 : 0;
-      const cookMs  = estimatedDuration * 100 + extraMs;
-      console.log(`[sim] scheduled completion for step ${id} in ${(cookMs / 1000).toFixed(1)}s`);
-
-      setTimeout(async () => {
-        if (!runningRef.current) { scheduledRef.current.delete(id); return; }
-        console.log(`[sim] complete step ${id}`);
-        try {
-          const completeRes = await fetch(`/api/steps/${id}/complete`, { method: 'POST' });
-          console.log(`[sim] complete step ${id} → ${completeRes.status}`);
-        } catch (err) {
-          console.warn(`[sim] complete step ${id} fetch error`, err);
-        } finally {
-          scheduledRef.current.delete(id);
+        console.log(`${tag} start ${step.id.slice(0, 6)} → ${res.status}`);
+        if (res.ok) {
+          claimed = true;
+        } else if (res.status !== 409) {
+          await sleep(2000); // unexpected error — back off
+          continue;
         }
-      }, cookMs);
-    }, Math.random() * 3000);
-  }, []);
+        // 409: lost the race, loop immediately to find next step
+      } catch (err) {
+        console.warn(`${tag} start error`, err);
+        await sleep(2000);
+        continue;
+      }
 
-  const pollFiredSteps = useCallback(async () => {
-    if (!runningRef.current) return;
+      if (!runningRef.current || generationRef.current !== generation) break;
+      if (!claimed) continue;
 
-    const { data: allActive } = await supabase
-      .from('order_steps')
-      .select('id, step_number, estimated_duration, station_id, order_item_id, status, started_at, order_items!inner(order_id)')
-      .in('status', ['pending', 'fired', 'in_progress'])
-      .order('step_number', { ascending: true });
+      // 4. Cook
+      const extra  = Math.random() < presetCfgRef.current.delayChance ? (30 + Math.random() * 60) * 100 : 0;
+      const cookMs = step.estimated_duration * 100 + extra;
+      console.log(`${tag} cooking ${step.id.slice(0, 6)} for ${(cookMs / 1000).toFixed(1)}s`);
+      await sleep(cookMs);
 
-    const active = allActive ?? [];
+      if (!runningRef.current || generationRef.current !== generation) break;
 
-    const busyDish    = new Set<string>();
-    const busyStation = new Set<string>();
-
-    let reAdopted = 0;
-    for (const s of active) {
-      if (s.status !== 'in_progress') continue;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const orderId = (s.order_items as any)?.order_id;
-      busyDish.add(s.order_item_id);
-      if (orderId) busyStation.add(`${orderId}:${s.station_id}`);
-
-      if (!scheduledRef.current.has(s.id)) {
-        const startedAtMs = s.started_at ? new Date(s.started_at).getTime() : Date.now();
-        const totalCookMs = s.estimated_duration * 100;
-        const remainingMs = Math.max(0, totalCookMs - (Date.now() - startedAtMs));
-        console.log(`[sim] re-adopting orphaned step ${s.id}, completing in ${(remainingMs / 1000).toFixed(1)}s`);
-        scheduledRef.current.add(s.id);
-        reAdopted++;
-        setTimeout(async () => {
-          if (!runningRef.current) { scheduledRef.current.delete(s.id); return; }
-          try {
-            const res = await fetch(`/api/steps/${s.id}/complete`, { method: 'POST' });
-            console.log(`[sim] re-adopted complete step ${s.id} → ${res.status}`);
-          } catch (err) {
-            console.warn(`[sim] re-adopted complete step ${s.id} fetch error`, err);
-          } finally {
-            scheduledRef.current.delete(s.id);
-          }
-        }, remainingMs);
+      // 5. Complete
+      try {
+        const res = await fetch(`/api/steps/${step.id}/complete`, { method: 'POST' });
+        console.log(`${tag} complete ${step.id.slice(0, 6)} → ${res.status}`);
+      } catch (err) {
+        console.warn(`${tag} complete error`, err);
       }
     }
 
-    const handledDish = new Set<string>();
-    let newlyScheduled = 0;
-    const skips = { busyDish: 0, handledDish: 0, noOrderId: 0, alreadyScheduled: 0, busyStation: 0 };
+    console.log(`${tag} loop exited (gen ${generation})`);
+  }, [supabase]);
 
-    for (const step of active) {
-      if (step.status === 'in_progress') continue;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const orderId = (step.order_items as any)?.order_id;
+  // Fetches all chef→station assignments and spawns one loop per chef.
+  // Increments generationRef so any existing loops from a prior call self-terminate.
+  const startChefLoops = useCallback(async () => {
+    const generation = ++generationRef.current;
 
-      if (busyDish.has(step.order_item_id))    { skips.busyDish++;    handledDish.add(step.order_item_id); continue; }
-      if (handledDish.has(step.order_item_id)) { skips.handledDish++; continue; }
-      handledDish.add(step.order_item_id);
-      if (!orderId) { skips.noOrderId++; continue; }
-      if (scheduledRef.current.has(step.id)) { skips.alreadyScheduled++; continue; }
+    const { data: rows } = await supabase
+      .from('chef_stations')
+      .select('chef_id, station_id');
 
-      const stationKey = `${orderId}:${step.station_id}`;
-      if (busyStation.has(stationKey)) { skips.busyStation++; continue; }
+    if (!runningRef.current || generationRef.current !== generation) return;
 
-      busyStation.add(stationKey);
-      scheduledRef.current.add(step.id);
-      scheduleStep(step.id, step.estimated_duration, presetCfgRef.current.delayChance, step.station_id);
-      newlyScheduled++;
+    const chefMap: Record<string, SimChef> = {};
+    for (const cs of rows ?? []) {
+      if (!chefMap[cs.chef_id]) chefMap[cs.chef_id] = { id: cs.chef_id, stationIds: [] };
+      chefMap[cs.chef_id].stationIds.push(cs.station_id);
     }
 
-    const inProgressCount = active.filter(s => s.status === 'in_progress').length;
-    console.log(
-      `[sim] poll — active:${active.length} in_progress:${inProgressCount} sched_set:${scheduledRef.current.size} new:${newlyScheduled} re-adopted:${reAdopted}`,
-      `| skips: busy_dish:${skips.busyDish} handled:${skips.handledDish} already_sched:${skips.alreadyScheduled} busy_station:${skips.busyStation}`,
-    );
-  }, [supabase, scheduleStep]);
+    const chefs = Object.values(chefMap);
+    console.log(`[sim] starting ${chefs.length} chef loop(s) (gen ${generation})`);
+    for (const chef of chefs) {
+      runChefLoop(chef, generation); // fire and forget
+    }
+  }, [supabase, runChefLoop]);
 
   const createOrder = useCallback(async (items: CatalogItem[]) => {
     if (!runningRef.current) return;
@@ -203,35 +200,18 @@ export default function SimulationBar() {
     }).catch(() => {});
   }, [supabase]);
 
-  // Start the cook-poll interval. Safe to call when it's already running.
-  function startCookPoll() {
-    if (cookPollTimer.current) return;
-    pollFiredSteps();
-    cookPollTimer.current = setInterval(() => {
-      console.log('sim: interval tick');
-      pollFiredSteps();
-    }, 2000);
-  }
-
-  function stopCookPoll() {
-    if (cookPollTimer.current) clearInterval(cookPollTimer.current);
-    cookPollTimer.current = null;
-  }
-
-  // Toggle Auto Mode: just the cook poll, no order generation.
   function handleAutoToggle() {
     if (autoMode) {
       runningRef.current = false;
+      generationRef.current++;
       setAutoMode(false);
       setOrdersRunning(false);
-      scheduledRef.current.clear();
       if (orderTimer.current) clearInterval(orderTimer.current);
       orderTimer.current = null;
-      stopCookPoll();
     } else {
       runningRef.current = true;
       setAutoMode(true);
-      startCookPoll();
+      startChefLoops();
     }
   }
 
@@ -245,11 +225,10 @@ export default function SimulationBar() {
     createOrder(items);
     orderTimer.current = setInterval(() => createOrder(items), intervalMs);
 
-    startCookPoll(); // no-op if already running via auto toggle
+    startChefLoops(); // increments generation, safe to call even if already running
   }
 
   async function handleStart() {
-    // Allow starting orders even when auto mode is already on.
     if (!catalog || catalog.length === 0 || ordersRunning) return;
 
     const { count } = await supabase
@@ -284,18 +263,18 @@ export default function SimulationBar() {
 
   function handleStopKitchen() {
     runningRef.current = false;
+    generationRef.current++;
     setOrdersRunning(false);
     setAutoMode(false);
-    scheduledRef.current.clear();
     if (orderTimer.current) clearInterval(orderTimer.current);
     orderTimer.current = null;
-    stopCookPoll();
   }
 
   useEffect(() => {
     return () => {
-      if (orderTimer.current)    clearInterval(orderTimer.current);
-      if (cookPollTimer.current) clearInterval(cookPollTimer.current);
+      runningRef.current = false;
+      generationRef.current++;
+      if (orderTimer.current) clearInterval(orderTimer.current);
     };
   }, []);
 
@@ -391,7 +370,7 @@ export default function SimulationBar() {
                   </button>
                 )}
 
-                {/* Stop kitchen (clears cook poll + orders) */}
+                {/* Stop kitchen (stops chef loops + orders) */}
                 {autoMode && (
                   <button
                     onClick={handleStopKitchen}
