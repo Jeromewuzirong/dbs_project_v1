@@ -90,10 +90,8 @@ export default async function LeaderboardPage() {
                   className="border-b border-gray-800/50 hover:bg-gray-900/40 transition-colors"
                 >
                   <td className="py-3 pr-6 w-10">
-                    {MEDALS[i] !== undefined ? (
+                    {MEDALS[i] !== undefined && (
                       <span className="text-xl">{MEDALS[i]}</span>
-                    ) : (
-                      <span className="text-gray-500 font-mono text-sm">#{i + 1}</span>
                     )}
                   </td>
                   <td className="py-3 pr-8 font-semibold text-white">{chef.name}</td>
