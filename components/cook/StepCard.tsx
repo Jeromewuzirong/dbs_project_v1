@@ -8,6 +8,7 @@ interface Props {
   chefId: string | null;
   readonly?: boolean;
   stationName?: string;
+  dishName?: string;
   onUpdate: () => void;
 }
 
@@ -26,7 +27,7 @@ async function apiPost(url: string, body?: Record<string, unknown>): Promise<boo
   return res.ok;
 }
 
-export default function StepCard({ step, chefId, readonly = false, stationName, onUpdate }: Props) {
+export default function StepCard({ step, chefId, readonly = false, stationName, dishName, onUpdate }: Props) {
   const [now,  setNow]  = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -83,6 +84,9 @@ export default function StepCard({ step, chefId, readonly = false, stationName, 
           <p className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1">
             Table {step.table_number}
           </p>
+          {dishName && (
+            <p className="text-sm font-semibold text-gray-300 mb-0.5">{dishName}</p>
+          )}
           <p className="text-2xl font-black text-white leading-tight">{step.name}</p>
           <p className="text-sm text-gray-500 mt-1 font-medium">
             Step {step.step_number} &middot; {Math.round(step.estimated_duration / 60)} min

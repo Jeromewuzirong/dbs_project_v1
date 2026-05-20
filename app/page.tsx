@@ -256,6 +256,17 @@ function Dashboard({
           </Link>
         )}
 
+        {roleState.chefId && (
+          <Link
+            href="/tasks"
+            className="flex-1 min-w-[200px] flex items-center justify-center gap-2 rounded-2xl bg-amber-700 hover:bg-amber-600 active:bg-amber-800
+                       text-white font-bold text-lg py-6 px-6 transition-colors shadow-lg shadow-amber-900/30"
+          >
+            <span className="text-2xl">✓</span>
+            My Tasks
+          </Link>
+        )}
+
         {isStaff && (
           <Link
             href="/history"

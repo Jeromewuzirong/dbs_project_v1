@@ -32,6 +32,7 @@ export interface StepWithContext {
   order_id: string;
   table_number: number;
   order_delay_status: string;
+  dish_name?: string; // populated in My Tasks; omitted in station view
 }
 
 interface Props {
