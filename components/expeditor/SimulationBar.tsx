@@ -167,6 +167,7 @@ export default function SimulationBar() {
       .select('chef_id, station_id, chefs!inner(name)');
 
     console.log(`[sim] chef_stations fetch: ${rows?.length ?? 0} rows, error=${error?.message ?? 'none'}`);
+    console.log('[sim] raw chef_stations rows:', JSON.stringify(rows));
 
     if (!runningRef.current || generationRef.current !== generation) {
       console.log(`[sim] startChefLoops aborted (running=${runningRef.current}, gen now=${generationRef.current})`);
