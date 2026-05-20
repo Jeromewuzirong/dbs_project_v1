@@ -6,6 +6,7 @@ import type { StepWithContext } from './StationView';
 interface Props {
   step: StepWithContext;
   chefId: string | null;
+  readonly?: boolean;
   onUpdate: () => void;
 }
 
@@ -24,7 +25,7 @@ async function apiPost(url: string, body?: Record<string, unknown>): Promise<boo
   return res.ok;
 }
 
-export default function StepCard({ step, chefId, onUpdate }: Props) {
+export default function StepCard({ step, chefId, readonly = false, onUpdate }: Props) {
   const [now,  setNow]  = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -142,8 +143,8 @@ export default function StepCard({ step, chefId, onUpdate }: Props) {
         )}
       </div>
 
-      {/* Action buttons */}
-      {(isFired || isInProgress) && (
+      {/* Action buttons — hidden in read-only (All Chefs) mode */}
+      {!readonly && (isFired || isInProgress) && (
         <div className="flex gap-3">
           {isFired && (
             <button

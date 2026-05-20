@@ -38,6 +38,35 @@ interface Props {
   stations: Station[];
 }
 
+interface ChefGroup {
+  chefId: string | null;
+  chefName: string;
+  steps: StepWithContext[];
+}
+
+function buildGroups(steps: StepWithContext[], chefOptions: ChefOption[]): ChefGroup[] {
+  const chefMap = new Map(chefOptions.map(c => [c.id, c.name]));
+  const byChef = new Map<string | null, StepWithContext[]>();
+
+  for (const step of steps) {
+    const key = step.assigned_chef_id;
+    if (!byChef.has(key)) byChef.set(key, []);
+    byChef.get(key)!.push(step);
+  }
+
+  return [...byChef.entries()]
+    .sort(([a], [b]) => {
+      if (a === null) return 1;
+      if (b === null) return -1;
+      return (chefMap.get(a) ?? a).localeCompare(chefMap.get(b) ?? b);
+    })
+    .map(([chefId, groupSteps]) => ({
+      chefId,
+      chefName: chefId ? (chefMap.get(chefId) ?? 'Unknown Chef') : 'Unassigned',
+      steps: groupSteps,
+    }));
+}
+
 export default function StationView({ stations }: Props) {
   const router       = useRouter();
   const searchParams = useSearchParams();
@@ -144,6 +173,17 @@ export default function StationView({ stations }: Props) {
     router.push(`?${params.toString()}`);
   }
 
+  function handleAllChefs() {
+    router.push(`?station=${stationId}`);
+  }
+
+  // In individual chef mode, show only steps assigned to that chef.
+  const visibleSteps = chefId
+    ? steps.filter(s => s.assigned_chef_id === chefId)
+    : steps;
+
+  const groups = !chefId ? buildGroups(steps, chefOptions) : [];
+
   return (
     <div className="flex flex-col h-screen">
 
@@ -157,17 +197,34 @@ export default function StationView({ stations }: Props) {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Chef selector */}
-          <select
-            value={chefId ?? ''}
-            onChange={handleChefChange}
-            className="bg-gray-800 text-white border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">— Chef —</option>
-            {chefOptions.map(c => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
+          {/* View mode: All Chefs | Individual chef */}
+          <div className="flex items-center border border-gray-700 rounded-lg overflow-hidden text-sm">
+            <button
+              onClick={handleAllChefs}
+              className={`px-3 py-2 font-semibold transition-colors ${
+                !chefId
+                  ? 'bg-gray-700 text-white'
+                  : 'bg-gray-800 text-gray-400 hover:text-white'
+              }`}
+            >
+              All Chefs
+            </button>
+            <div className="w-px bg-gray-700 self-stretch" />
+            <select
+              value={chefId ?? ''}
+              onChange={handleChefChange}
+              className={`px-3 py-2 focus:outline-none transition-colors cursor-pointer ${
+                chefId
+                  ? 'bg-gray-700 text-white font-semibold'
+                  : 'bg-gray-800 text-gray-400'
+              }`}
+            >
+              <option value="">Chef…</option>
+              {chefOptions.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
 
           {/* Station selector */}
           <select
@@ -192,21 +249,59 @@ export default function StationView({ stations }: Props) {
       </div>
 
       {/* Queue */}
-      <div className="flex-1 overflow-y-auto p-5 space-y-4">
+      <div className="flex-1 overflow-y-auto p-5">
         {loading && (
           <p className="text-center text-gray-500 py-12 text-sm">Loading…</p>
         )}
-        {!loading && steps.length === 0 && (
-          <p className="text-center text-gray-500 py-12 text-sm">Queue is clear.</p>
+
+        {/* All Chefs mode: grouped, read-only */}
+        {!chefId && !loading && (
+          <>
+            {steps.length === 0 && (
+              <p className="text-center text-gray-500 py-12 text-sm">Queue is clear.</p>
+            )}
+            {groups.map(group => (
+              <section key={group.chefId ?? '__unassigned__'} className="mb-8">
+                <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest mb-3">
+                  <span className={group.chefId ? 'text-gray-400' : 'text-gray-600 italic'}>
+                    {group.chefName}
+                  </span>
+                  <span className="text-gray-700 font-normal normal-case tracking-normal">
+                    · {group.steps.length} step{group.steps.length !== 1 ? 's' : ''}
+                  </span>
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {group.steps.map(step => (
+                    <StepCard
+                      key={step.id}
+                      step={step}
+                      chefId={null}
+                      readonly
+                      onUpdate={() => stationId && fetchSteps(stationId)}
+                    />
+                  ))}
+                </div>
+              </section>
+            ))}
+          </>
         )}
-        {steps.map(step => (
-          <StepCard
-            key={step.id}
-            step={step}
-            chefId={chefId}
-            onUpdate={() => stationId && fetchSteps(stationId)}
-          />
-        ))}
+
+        {/* Individual chef mode: filtered, interactive */}
+        {chefId && !loading && (
+          <div className="space-y-4">
+            {visibleSteps.length === 0 && (
+              <p className="text-center text-gray-500 py-12 text-sm">Queue is clear.</p>
+            )}
+            {visibleSteps.map(step => (
+              <StepCard
+                key={step.id}
+                step={step}
+                chefId={chefId}
+                onUpdate={() => stationId && fetchSteps(stationId)}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
