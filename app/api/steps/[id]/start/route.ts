@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server';
 import { adminClient } from '@/lib/supabase/admin';
+import { requireAuth } from '@/lib/auth';
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const guard = await requireAuth();
+  if (guard instanceof NextResponse) return guard;
   const { id } = await params;
 
   let chefId: string | null = null;

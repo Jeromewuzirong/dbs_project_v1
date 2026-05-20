@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server';
 import { adminClient } from '@/lib/supabase/admin';
+import { requireAuth } from '@/lib/auth';
 
 const CHEF_SELECT = 'id, name, created_at, chef_stations(station_id, stations(id, name, display_order))';
 
 export async function GET() {
+  const guard = await requireAuth();
+  if (guard instanceof NextResponse) return guard;
+
   const { data, error } = await adminClient
     .from('chefs')
     .select(CHEF_SELECT)
@@ -16,6 +20,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const guard = await requireAuth();
+  if (guard instanceof NextResponse) return guard;
+
   let body: { name?: string; stations?: string[] };
   try {
     body = await request.json();

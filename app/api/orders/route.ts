@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { adminClient } from '@/lib/supabase/admin';
 import { reschedule } from '@/lib/scheduler';
 import type { OrderItemWithSteps } from '@/lib/scheduler';
+import { requireAuth } from '@/lib/auth';
 
 // pg_advisory_xact_lock requires a direct Postgres connection (not PostgREST).
 // For order creation there is no concurrency risk — each order gets a new UUID.
@@ -13,6 +14,10 @@ interface CreateOrderBody {
 }
 
 export async function POST(request: Request) {
+  const guard = await requireAuth();
+  if (guard instanceof NextResponse) return guard;
+  const { userId } = guard;
+
   // --- Parse & validate --------------------------------------------------
   let body: CreateOrderBody;
   try {
@@ -55,7 +60,7 @@ export async function POST(request: Request) {
   // --- 1. Insert order ---------------------------------------------------
   const { data: order, error: orderErr } = await adminClient
     .from('orders')
-    .insert({ table_number, target_serve_time, status: 'active' })
+    .insert({ table_number, target_serve_time, status: 'active', clerk_user_id: userId })
     .select()
     .single();
 

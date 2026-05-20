@@ -1,8 +1,10 @@
 import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import StationView from '@/components/cook/StationView';
+import { requireRole } from '@/lib/auth';
 
 export default async function StationPage() {
+  await requireRole('chef', 'admin');
   const supabase = await createClient();
   const { data: stations } = await supabase
     .from('stations')

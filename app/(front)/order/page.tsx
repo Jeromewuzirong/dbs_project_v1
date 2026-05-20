@@ -2,8 +2,10 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import OrderForm from '@/components/front/OrderForm';
 import type { MenuItem } from '@/lib/types';
+import { requireRole } from '@/lib/auth';
 
 export default async function OrderPage() {
+  await requireRole('customer', 'admin');
   const supabase = await createClient();
   const { data } = await supabase
     .from('menu_items')

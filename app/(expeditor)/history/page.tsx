@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import type { DelayStatus } from '@/lib/types';
+import { requireRole } from '@/lib/auth';
 
 const HISTORY_SELECT = `
   id, table_number, target_serve_time, created_at,
@@ -43,6 +44,7 @@ function formatDuration(totalSeconds: number): string {
 }
 
 export default async function HistoryPage() {
+  await requireRole('chef', 'admin');
   const supabase = await createClient();
 
   const { data, error } = await supabase
