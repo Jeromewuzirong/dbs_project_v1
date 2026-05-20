@@ -1,5 +1,5 @@
-import Link from 'next/link';
-import { createClient } from '@/lib/supabase/server';
+import { adminClient } from '@/lib/supabase/admin';
+import BackButton from './BackButton';
 
 interface ChefStats {
   chefId: string;
@@ -11,16 +11,14 @@ interface ChefStats {
 const MEDALS = ['🥇', '🥈', '🥉'];
 
 export default async function LeaderboardPage() {
-  const supabase = await createClient();
-
   const [{ data: steps, error: stepsError }, { data: chefs, error: chefsError }] =
     await Promise.all([
-      supabase
+      adminClient
         .from('order_steps')
         .select('assigned_chef_id, estimated_duration, actual_duration')
         .eq('status', 'completed')
         .not('assigned_chef_id', 'is', null),
-      supabase
+      adminClient
         .from('chefs')
         .select('id, name'),
     ]);
@@ -35,6 +33,9 @@ export default async function LeaderboardPage() {
   }
 
   const chefNames = new Map((chefs ?? []).map(c => [c.id, c.name]));
+
+  console.log('[leaderboard] chefs fetched:', chefs?.length ?? 0, [...chefNames.entries()]);
+  console.log('[leaderboard] sample assigned_chef_ids:', steps?.slice(0, 5).map(s => s.assigned_chef_id));
 
   const byChef = new Map<string, { total: number; onTime: number }>();
 
@@ -53,7 +54,7 @@ export default async function LeaderboardPage() {
   const stats: ChefStats[] = [...byChef.entries()]
     .map(([chefId, c]) => ({
       chefId,
-      name:           chefNames.get(chefId) ?? 'Unknown',
+      name:           chefNames.get(chefId) ?? `Unknown (${chefId.slice(0, 8)})`,
       stepsCompleted: c.total,
       onTimeRate:     c.total > 0 ? (c.onTime / c.total) * 100 : 0,
     }))
@@ -64,9 +65,7 @@ export default async function LeaderboardPage() {
   return (
     <main className="min-h-screen bg-gray-950 text-white">
       <header className="px-6 py-4 border-b border-gray-800 bg-gray-900 shrink-0 flex items-center gap-4">
-        <Link href="/dashboard" className="text-gray-500 hover:text-white transition-colors text-sm font-medium cursor-pointer">
-          ← Back
-        </Link>
+        <BackButton />
         <h1 className="text-lg font-bold tracking-wide">Chef Leaderboard</h1>
         <span className="text-sm text-gray-500">{stats.length} chef{stats.length !== 1 ? 's' : ''}</span>
       </header>
