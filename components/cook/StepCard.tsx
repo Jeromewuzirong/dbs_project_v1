@@ -7,6 +7,7 @@ interface Props {
   step: StepWithContext;
   chefId: string | null;
   readonly?: boolean;
+  stationName?: string;
   onUpdate: () => void;
 }
 
@@ -25,7 +26,7 @@ async function apiPost(url: string, body?: Record<string, unknown>): Promise<boo
   return res.ok;
 }
 
-export default function StepCard({ step, chefId, readonly = false, onUpdate }: Props) {
+export default function StepCard({ step, chefId, readonly = false, stationName, onUpdate }: Props) {
   const [now,  setNow]  = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -85,6 +86,7 @@ export default function StepCard({ step, chefId, readonly = false, onUpdate }: P
           <p className="text-2xl font-black text-white leading-tight">{step.name}</p>
           <p className="text-sm text-gray-500 mt-1 font-medium">
             Step {step.step_number} &middot; {Math.round(step.estimated_duration / 60)} min
+            {stationName && <> &middot; {stationName}</>}
           </p>
         </div>
 

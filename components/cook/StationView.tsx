@@ -46,7 +46,7 @@ interface ChefGroup {
 
 function buildGroups(steps: StepWithContext[], chefOptions: ChefOption[]): ChefGroup[] {
   const chefMap = new Map(chefOptions.map(c => [c.id, c.name]));
-  const byChef = new Map<string | null, StepWithContext[]>();
+  const byChef  = new Map<string | null, StepWithContext[]>();
 
   for (const step of steps) {
     const key = step.assigned_chef_id;
@@ -73,16 +73,22 @@ export default function StationView({ stations }: Props) {
 
   const [supabase] = useState(() => createClient());
 
-  const stationId       = searchParams.get('station') ?? stations[0]?.id ?? null;
-  const chefId          = searchParams.get('chef') ?? null;
+  // 'any' sentinel means all stations; otherwise fall back to first station
+  const stationParam  = searchParams.get('station');
+  const isAnyStation  = stationParam === 'any';
+  const stationId     = isAnyStation ? null : (stationParam ?? stations[0]?.id ?? null);
+  const chefId        = searchParams.get('chef') ?? null;
   const selectedStation = stations.find(s => s.id === stationId);
+
+  const stationNameMap = new Map(stations.map(s => [s.id, s.name]));
 
   const [steps,       setSteps]       = useState<StepWithContext[]>([]);
   const [loading,     setLoading]     = useState(false);
   const [chefOptions, setChefOptions] = useState<ChefOption[]>([]);
 
-  const fetchSteps = useCallback(async (sid: string) => {
-    const { data, error } = await supabase
+  const fetchSteps = useCallback(async (sid: string | null) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let query: any = supabase
       .from('order_steps')
       .select(`
         id, step_number, name, estimated_duration, status,
@@ -96,10 +102,12 @@ export default function StationView({ stations }: Props) {
           )
         )
       `)
-      .eq('station_id', sid)
       .in('status', ['pending', 'fired', 'in_progress'])
       .order('fire_at', { ascending: true });
 
+    if (sid) query = query.eq('station_id', sid);
+
+    const { data, error } = await query;
     if (error || !data) return;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -122,45 +130,54 @@ export default function StationView({ stations }: Props) {
     })));
   }, [supabase]);
 
-  // Fetch chef options whenever the selected station changes
-  useEffect(() => {
-    if (!stationId) { setChefOptions([]); return; }
+  // Stable refresh callback — captures current stationId from render scope
+  const refresh = useCallback(() => {
+    fetchSteps(stationId);
+  }, [fetchSteps, stationId]);
 
+  // Chef options: all chefs in Any mode, station-filtered otherwise
+  useEffect(() => {
     fetch('/api/chefs')
       .then(r => r.json())
       .then((data: { id: string; name: string; chef_stations: { station_id: string }[] }[]) => {
         const seen = new Map<string, ChefOption>();
         for (const c of data) {
-          if (!seen.has(c.id) && c.chef_stations.some(cs => cs.station_id === stationId)) {
+          if (!seen.has(c.id) && (isAnyStation || c.chef_stations.some(cs => cs.station_id === stationId))) {
             seen.set(c.id, { id: c.id, name: c.name });
           }
         }
         setChefOptions([...seen.values()].sort((a, b) => a.name.localeCompare(b.name)));
       })
       .catch(() => {});
-  }, [stationId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stationId, isAnyStation]);
 
-  // Subscribe to Realtime changes for the current station
+  // Realtime subscription — no station filter when Any is selected
   useEffect(() => {
-    if (!stationId) return;
+    if (!isAnyStation && !stationId) return;
 
     setLoading(true);
     fetchSteps(stationId).finally(() => setLoading(false));
 
+    const channelName = stationId ? `cook-station-${stationId}` : 'cook-station-any';
+    const pgFilter    = stationId ? { filter: `station_id=eq.${stationId}` } : {};
+
     const channel = supabase
-      .channel(`cook-station-${stationId}`)
+      .channel(channelName)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'order_steps', filter: `station_id=eq.${stationId}` },
+        { event: '*', schema: 'public', table: 'order_steps', ...pgFilter },
         () => fetchSteps(stationId),
       )
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [stationId, supabase, fetchSteps]);
+  }, [stationId, isAnyStation, supabase, fetchSteps]);
 
   function handleStationChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    router.push(`?station=${e.target.value}`);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('station', e.target.value); // 'any' or a station uuid
+    router.push(`?${params.toString()}`);
   }
 
   function handleChefChange(e: React.ChangeEvent<HTMLSelectElement>) {
@@ -174,10 +191,12 @@ export default function StationView({ stations }: Props) {
   }
 
   function handleAllChefs() {
-    router.push(`?station=${stationId}`);
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('chef');
+    router.push(`?${params.toString()}`);
   }
 
-  // In individual chef mode, show only steps assigned to that chef.
+  // Individual chef mode: only steps assigned to that chef
   const visibleSteps = chefId
     ? steps.filter(s => s.assigned_chef_id === chefId)
     : steps;
@@ -228,11 +247,11 @@ export default function StationView({ stations }: Props) {
 
           {/* Station selector */}
           <select
-            value={stationId ?? ''}
+            value={isAnyStation ? 'any' : (stationId ?? '')}
             onChange={handleStationChange}
             className="bg-gray-800 text-white border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            {stations.length === 0 && <option value="">No stations</option>}
+            <option value="any">Any</option>
             {stations.map(s => (
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
@@ -244,7 +263,7 @@ export default function StationView({ stations }: Props) {
       <div className="px-6 py-5 bg-gray-900 border-b border-gray-800 shrink-0">
         <p className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1">Now Serving</p>
         <span className="text-5xl font-black text-white tracking-tight">
-          {selectedStation?.name ?? '—'}
+          {isAnyStation ? 'All Stations' : (selectedStation?.name ?? '—')}
         </span>
       </div>
 
@@ -277,7 +296,8 @@ export default function StationView({ stations }: Props) {
                       step={step}
                       chefId={null}
                       readonly
-                      onUpdate={() => stationId && fetchSteps(stationId)}
+                      stationName={isAnyStation ? stationNameMap.get(step.station_id) : undefined}
+                      onUpdate={refresh}
                     />
                   ))}
                 </div>
@@ -297,7 +317,8 @@ export default function StationView({ stations }: Props) {
                 key={step.id}
                 step={step}
                 chefId={chefId}
-                onUpdate={() => stationId && fetchSteps(stationId)}
+                stationName={isAnyStation ? stationNameMap.get(step.station_id) : undefined}
+                onUpdate={refresh}
               />
             ))}
           </div>
