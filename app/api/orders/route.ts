@@ -56,13 +56,21 @@ export async function POST(request: Request) {
   // --- 1. Insert order ---------------------------------------------------
   const { data: order, error: orderErr } = await adminClient
     .from('orders')
-    .insert({ table_number, target_serve_time, status: 'active', clerk_user_id: customer_id ?? null })
+    .insert({
+      table_number,
+      target_serve_time,
+      status: 'active',
+      // Omit clerk_user_id when null so the column default (NULL) applies.
+      // Explicitly sending null can trip schema-cache mismatches in PostgREST.
+      ...(customer_id != null ? { clerk_user_id: customer_id } : {}),
+    })
     .select()
     .single();
 
   if (orderErr || !order) {
+    console.error('[POST /api/orders] insert error:', orderErr);
     return NextResponse.json(
-      { error: 'Failed to create order', detail: orderErr?.message },
+      { error: 'Failed to create order', detail: orderErr?.message, hint: orderErr?.hint, code: orderErr?.code },
       { status: 500 },
     );
   }

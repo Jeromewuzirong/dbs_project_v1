@@ -20,6 +20,12 @@ export async function GET(request: Request) {
     .eq('clerk_user_id', customerId)
     .order('created_at', { ascending: false });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error('[GET /api/orders/mine] query error:', error);
+    return NextResponse.json(
+      { error: error.message, detail: error.details, hint: error.hint, code: error.code },
+      { status: 500 },
+    );
+  }
   return NextResponse.json(data ?? []);
 }
