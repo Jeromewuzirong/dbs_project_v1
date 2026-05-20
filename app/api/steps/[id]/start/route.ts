@@ -2,10 +2,18 @@ import { NextResponse } from 'next/server';
 import { adminClient } from '@/lib/supabase/admin';
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+
+  let chefId: string | null = null;
+  try {
+    const body = await request.json();
+    chefId = body?.chef_id ?? null;
+  } catch {
+    // no body — chef_id remains null
+  }
 
   const { data: step, error: stepErr } = await adminClient
     .from('order_steps').select('status').eq('id', id).single();
@@ -22,7 +30,11 @@ export async function POST(
 
   const { data: updated, error: updateErr } = await adminClient
     .from('order_steps')
-    .update({ status: 'in_progress', started_at: new Date().toISOString() })
+    .update({
+      status: 'in_progress',
+      started_at: new Date().toISOString(),
+      assigned_chef_id: chefId,
+    })
     .eq('id', id)
     .select()
     .single();

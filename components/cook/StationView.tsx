@@ -203,6 +203,7 @@ export default function StationView({ stations }: Props) {
           <StepCard
             key={step.id}
             step={step}
+            chefId={chefId}
             onUpdate={() => stationId && fetchSteps(stationId)}
           />
         ))}

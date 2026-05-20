@@ -5,6 +5,7 @@ import type { StepWithContext } from './StationView';
 
 interface Props {
   step: StepWithContext;
+  chefId: string | null;
   onUpdate: () => void;
 }
 
@@ -15,12 +16,15 @@ function formatDuration(totalSeconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-async function apiPost(url: string): Promise<boolean> {
-  const res = await fetch(url, { method: 'POST' });
+async function apiPost(url: string, body?: Record<string, unknown>): Promise<boolean> {
+  const res = await fetch(url, {
+    method: 'POST',
+    ...(body ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}),
+  });
   return res.ok;
 }
 
-export default function StepCard({ step, onUpdate }: Props) {
+export default function StepCard({ step, chefId, onUpdate }: Props) {
   const [now,  setNow]  = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -51,7 +55,7 @@ export default function StepCard({ step, onUpdate }: Props) {
 
   async function handleStart() {
     setBusy(true);
-    await apiPost(`/api/steps/${step.id}/start`);
+    await apiPost(`/api/steps/${step.id}/start`, chefId ? { chef_id: chefId } : undefined);
     onUpdate();
     setBusy(false);
   }
