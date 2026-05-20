@@ -162,34 +162,31 @@ export default function SimulationBar() {
     const generation = ++generationRef.current;
     console.log(`[sim] startChefLoops called (gen ${generation}, running=${runningRef.current})`);
 
-    const { data: rows, error } = await supabase
-      .from('chef_stations')
-      .select('chef_id, station_id, chefs!inner(name)');
+    // Use the API route (admin client) — the anon client cannot read chef_stations.
+    type ApiChef = { id: string; name: string; chef_stations: { station_id: string }[] };
+    let apiChefs: ApiChef[] = [];
+    try {
+      const res = await fetch('/api/chefs');
+      apiChefs  = await res.json();
+    } catch (err) {
+      console.warn('[sim] /api/chefs fetch failed', err);
+    }
 
-    console.log(`[sim] chef_stations fetch: ${rows?.length ?? 0} rows, error=${error?.message ?? 'none'}`);
-    console.log('[sim] raw chef_stations rows:', JSON.stringify(rows));
+    console.log(`[sim] /api/chefs returned ${apiChefs.length} chef(s):`, apiChefs.map(c => c.name));
 
     if (!runningRef.current || generationRef.current !== generation) {
       console.log(`[sim] startChefLoops aborted (running=${runningRef.current}, gen now=${generationRef.current})`);
       return;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const chefMap: Record<string, SimChef> = {};
-    for (const cs of rows ?? []) {
-      if (!chefMap[cs.chef_id]) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        chefMap[cs.chef_id] = { id: cs.chef_id, name: (cs as any).chefs?.name ?? cs.chef_id.slice(0, 6), stationIds: [] };
-      }
-      chefMap[cs.chef_id].stationIds.push(cs.station_id);
-    }
-
-    const chefs = Object.values(chefMap);
+    const chefs: SimChef[] = apiChefs
+      .filter(c => c.chef_stations.length > 0)
+      .map(c => ({ id: c.id, name: c.name, stationIds: c.chef_stations.map(cs => cs.station_id) }));
     console.log(`[sim] spawning ${chefs.length} chef loop(s):`, chefs.map(c => c.name));
     for (const chef of chefs) {
       runChefLoop(chef, generation); // fire and forget
     }
-  }, [supabase, runChefLoop]);
+  }, [runChefLoop]);
 
   const createOrder = useCallback(async (items: CatalogItem[]) => {
     if (!runningRef.current) return;
