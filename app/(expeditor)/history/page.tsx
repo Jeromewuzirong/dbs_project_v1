@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import type { DelayStatus } from '@/lib/types';
+import HistoryAccordion, { type CompletedOrder } from './HistoryAccordion';
 
 const HISTORY_SELECT = `
   id, table_number, target_serve_time, created_at,
@@ -11,36 +12,6 @@ const HISTORY_SELECT = `
 `;
 
 const SOFT_DELAY_TOLERANCE_MS = 60 * 1000;
-
-interface CompletedOrder {
-  id: string;
-  table_number: number;
-  target_serve_time: string;
-  delay_status: DelayStatus;
-  created_at: string;
-  dish_count: number;
-  completed_at: string | null;
-  total_seconds: number | null;
-}
-
-const DELAY_LABELS: Record<DelayStatus, { label: string; cls: string }> = {
-  on_track:   { label: 'On track',   cls: 'text-green-400'  },
-  soft_delay: { label: 'Soft delay', cls: 'text-amber-400'  },
-  hard_delay: { label: 'Hard delay', cls: 'text-red-400'    },
-};
-
-function formatTimestamp(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
-    month: 'short', day: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  });
-}
-
-function formatDuration(totalSeconds: number): string {
-  const m = Math.floor(totalSeconds / 60);
-  const s = totalSeconds % 60;
-  return `${m}m ${s}s`;
-}
 
 export default async function HistoryPage() {
   const supabase = await createClient();
@@ -112,52 +83,7 @@ export default async function HistoryPage() {
       </header>
 
       <div className="p-6 overflow-x-auto">
-        {orders.length === 0 ? (
-          <p className="text-center text-gray-500 py-24 text-sm">No completed orders yet.</p>
-        ) : (
-          <table className="w-full text-sm text-left border-collapse">
-            <thead>
-              <tr className="text-xs uppercase tracking-wider text-gray-500 border-b border-gray-800">
-                <th className="pb-3 pr-8 font-semibold">Table</th>
-                <th className="pb-3 pr-8 font-semibold">Dishes</th>
-                <th className="pb-3 pr-8 font-semibold">Target serve</th>
-                <th className="pb-3 pr-8 font-semibold">Completed at</th>
-                <th className="pb-3 pr-8 font-semibold">Status</th>
-                <th className="pb-3 font-semibold">Total time</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orders.map(order => {
-                const delay = DELAY_LABELS[order.delay_status] ?? DELAY_LABELS.on_track;
-                return (
-                  <tr
-                    key={order.id}
-                    className="border-b border-gray-800/50 hover:bg-gray-900/40 transition-colors"
-                  >
-                    <td className="py-3 pr-8 font-bold text-white text-base">
-                      {order.table_number}
-                    </td>
-                    <td className="py-3 pr-8 text-gray-300">
-                      {order.dish_count}
-                    </td>
-                    <td className="py-3 pr-8 text-gray-400 font-mono text-xs tabular-nums">
-                      {formatTimestamp(order.target_serve_time)}
-                    </td>
-                    <td className="py-3 pr-8 text-gray-300 font-mono text-xs tabular-nums">
-                      {order.completed_at ? formatTimestamp(order.completed_at) : '—'}
-                    </td>
-                    <td className={`py-3 pr-8 font-semibold text-xs ${delay.cls}`}>
-                      {delay.label}
-                    </td>
-                    <td className="py-3 text-gray-300 font-mono text-xs tabular-nums">
-                      {order.total_seconds !== null ? formatDuration(order.total_seconds) : '—'}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
+        <HistoryAccordion orders={orders} />
       </div>
     </main>
   );
