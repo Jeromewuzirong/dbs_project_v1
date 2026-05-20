@@ -30,6 +30,8 @@ export default function DashboardView({ initialOrders, stations }: Props) {
   const [chefs, setChefs] = useState<ChefWithStations[]>([]);
   const [chefTasks, setChefTasks] = useState<Record<string, ChefTask>>({});
   const [unassignedTask, setUnassignedTask] = useState<ChefTask | null>(null);
+  const [flash, setFlash] = useState<string | null>(null);
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     fetch('/api/chefs')
@@ -154,6 +156,32 @@ export default function DashboardView({ initialOrders, stations }: Props) {
     return () => clearInterval(intervalId);
   }, []); // intentionally no deps — reads live state via displayRef
 
+  async function handleNewOrder() {
+    const { data: menuItems } = await supabase.from('menu_items').select('id');
+    if (!menuItems || menuItems.length === 0) return;
+
+    const occupiedTables = new Set(displayRef.current.map(o => o.table_number));
+    const available = Array.from({ length: 20 }, (_, i) => i + 1).filter(n => !occupiedTables.has(n));
+    const tableNumber = available.length > 0
+      ? available[Math.floor(Math.random() * available.length)]
+      : Math.ceil(Math.random() * 20);
+
+    const shuffled = [...menuItems].sort(() => Math.random() - 0.5);
+    const picked = shuffled.slice(0, 1 + Math.floor(Math.random() * 3)).map(m => m.id);
+
+    const res = await fetch('/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ table_number: tableNumber, items: picked }),
+    });
+
+    if (!res.ok) return;
+
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    setFlash(`Order created: Table ${tableNumber}`);
+    flashTimer.current = setTimeout(() => setFlash(null), 2000);
+  }
+
   const activeOrders  = displayOrders.filter(o => !o.completing);
   const stationSummaries = deriveStationSummaries(stations, activeOrders);
   const activeCount  = activeOrders.filter(o => o.status === 'active').length;
@@ -178,9 +206,23 @@ export default function DashboardView({ initialOrders, stations }: Props) {
             </Link>
             <h1 className="text-lg font-bold tracking-wide text-white">Expeditor</h1>
           </div>
-          <div className="flex gap-4 text-sm text-gray-400">
-            <span><span className="text-white font-semibold">{activeCount}</span> active</span>
-            <span><span className="text-white font-semibold">{pendingCount}</span> pending</span>
+          <div className="flex items-center gap-4">
+            {flash && (
+              <span className="text-green-400 text-xs font-semibold animate-pulse">
+                {flash}
+              </span>
+            )}
+            <button
+              onClick={handleNewOrder}
+              className="px-3 py-1.5 rounded-lg bg-green-700 hover:bg-green-600 active:bg-green-800
+                         text-white text-xs font-bold transition-colors cursor-pointer"
+            >
+              + New Order
+            </button>
+            <div className="flex gap-4 text-sm text-gray-400">
+              <span><span className="text-white font-semibold">{activeCount}</span> active</span>
+              <span><span className="text-white font-semibold">{pendingCount}</span> pending</span>
+            </div>
           </div>
         </header>
 
