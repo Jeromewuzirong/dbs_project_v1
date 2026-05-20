@@ -146,7 +146,7 @@ export default function DashboardView({ initialOrders, stations }: Props) {
       </div>
 
       {/* Right panel: station sidebar + chef tracker */}
-      <aside className="w-60 shrink-0 border-l border-gray-800 flex flex-col overflow-hidden">
+      <aside className="w-60 shrink-0 border-l border-gray-800 flex flex-col overflow-y-auto">
         <StationSidebar stations={stationSummaries} />
         <ChefTracker chefs={chefs} activeOrders={activeOrders} />
       </aside>
